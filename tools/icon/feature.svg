@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+<rect width="1024" height="500" fill="#0F766E"/>
+<g transform="translate(70 70) scale(0.35)">
+<rect width="1024" height="1024" rx="229" fill="#0F766E" stroke="#134E4A" stroke-width="24"/>
+<circle cx="512" cy="512" r="330" fill="none" stroke="#134E4A" stroke-width="70"/>
+<path d="M512 182 A330 330 0 1 1 226 677" fill="none" stroke="#FFFFFF" stroke-width="70" stroke-linecap="round"/>
+<rect x="402" y="360" width="220" height="250" rx="60" fill="#FFFFFF"/>
+<rect x="432" y="395" width="160" height="80" rx="20" fill="#0F766E"/>
+<circle cx="448" cy="560" r="18" fill="#0F766E"/><circle cx="576" cy="560" r="18" fill="#0F766E"/>
+<path d="M430 640 L400 690 M594 640 L624 690" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round"/>
+</g>
+<text x="470" y="250" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="120" font-weight="700" fill="#FFFFFF">Andén</text>
+<text x="474" y="320" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="40" fill="#CCFBF1">Próximo tren de Cercanías</text>
+</svg>
