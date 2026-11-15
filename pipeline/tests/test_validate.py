@@ -56,14 +56,17 @@ class ValidateFeedTest(unittest.TestCase):
             for f in MINI.iterdir():
                 z.write(f, f.name)
         out = Path(tmp) / "out"
+        noprev = Path(tmp) / "noprev"
+        noprev.mkdir()
         proc = subprocess.run([sys.executable, str(SCRIPT), "--out", str(out), "--zip", str(zpath),
-                               "--date", TODAY.isoformat(), *extra], capture_output=True, text=True)
+                               "--date", TODAY.isoformat(), "--previous-base", noprev.as_uri(), *extra],
+                              capture_output=True, text=True)
         return proc, out
 
-    def test_cli_does_not_write_on_invalid(self):
+    def test_cli_does_not_write_invalid_v1(self):
         with tempfile.TemporaryDirectory() as tmp:
             proc, out = self._run_cli(tmp)  # default min_stops=20 > 4 fixture stops
-            self.assertEqual(1, proc.returncode, proc.stderr)
+            self.assertEqual(0, proc.returncode, proc.stderr)  # v2 Valencia still published
             self.assertFalse((out / "feed.json").exists())
 
     def test_cli_writes_valid_feed_atomically(self):
@@ -72,8 +75,7 @@ class ValidateFeedTest(unittest.TestCase):
             self.assertEqual(0, proc.returncode, proc.stderr)
             feed = json.loads((out / "feed.json").read_text(encoding="utf-8"))
             self.assertEqual("2026-11-14", feed["valid_from"])
-            self.assertEqual(["feed.json"], [p.name for p in out.iterdir()])
-
+            self.assertEqual([], [p.name for p in out.rglob("*.tmp")])
 
 if __name__ == "__main__":
     unittest.main()

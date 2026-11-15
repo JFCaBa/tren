@@ -39,6 +39,10 @@ class NucleosTest(unittest.TestCase):
         self.assertEqual([["18000", 28800], ["18002", 30600]], t["times"])
         self.assertEqual(9, len(t["dates"]))
 
+    def test_bad_time_or_coords_drop_only_that_trip(self):
+        ids = [t["id"] for t in self.feeds["10"]["trips"]]
+        self.assertEqual(["M1"], ids)
+
     def test_bus_route_type_excluded(self):
         self.assertNotIn("MBUS", [t["id"] for t in self.feeds["10"]["trips"]])
         self.assertNotIn("C9", self.feeds["10"]["lines"])

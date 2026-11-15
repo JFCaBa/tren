@@ -218,21 +218,35 @@ def build_nucleos(gtfs_dir: Path, today: date, days: int = 7) -> dict:
             trips[r["trip_id"]] = (route, dates)
 
     times = defaultdict(list)
+    bad_trips = set()
     for r in _rows(gtfs_dir / "stop_times.txt"):
         if r["trip_id"] in trips:
             t = r.get("departure_time") or r.get("arrival_time")
             if t:
-                times[r["trip_id"]].append((int(r["stop_sequence"]), r["stop_id"], _secs(t)))
+                try:
+                    times[r["trip_id"]].append((int(r["stop_sequence"]), r["stop_id"], _secs(t)))
+                except ValueError:
+                    bad_trips.add(r["trip_id"])  # one bad row drops its trip, not the whole run
 
-    stops_all = {r["stop_id"]: r for r in _rows(gtfs_dir / "stops.txt")}
+    def usable(stop):
+        try:
+            float(stop["stop_lat"]), float(stop["stop_lon"])
+            return True
+        except (KeyError, ValueError):
+            return False
+
+    stops_all = {r["stop_id"]: r for r in _rows(gtfs_dir / "stops.txt") if usable(r)}
     feeds = {}
     multi_date = 0
     for trip_id, ((nucleo, line, color), dates) in trips.items():
         seq = sorted(times.get(trip_id, []))
         if len(seq) < 2:
             continue
+        if trip_id in bad_trips:
+            print(f"warning: dropping {trip_id}: invalid time", file=sys.stderr)
+            continue
         if any(sid not in stops_all for _, sid, _ in seq):
-            print(f"warning: dropping {trip_id}: unknown stops", file=sys.stderr)
+            print(f"warning: dropping {trip_id}: unknown stops or invalid coordinates", file=sys.stderr)
             continue
         if any(secs >= MAX_SECS for _, _, secs in seq):
             print(f"warning: dropping {trip_id}: time >= 48:00:00", file=sys.stderr)
@@ -325,13 +339,66 @@ def _download(dest: Path, attempts: int = 3) -> None:
             time.sleep(30 * attempt)
 
 
+PAGES_BASE = "https://jfcaba.github.io/tren"
+
+
+def validate_nucleo(feed: dict, today: date, previous) -> list:
+    """Problems that make a núcleo feed unpublishable; compares with the previous publication."""
+    errors = []
+    dates = {d for t in feed["trips"] for d in t["dates"]}
+    for d in (today, today + timedelta(days=1)):
+        if d.isoformat() not in dates:
+            errors.append(f"no trips on {d.isoformat()}")
+    if previous:
+        if len(feed["stops"]) < 0.5 * len(previous.get("stops", [])):
+            errors.append(f"only {len(feed['stops'])} stops vs {len(previous.get('stops', []))} before")
+        if len(feed["trips"]) < 0.5 * len(previous.get("trips", [])):
+            errors.append(f"only {len(feed['trips'])} trips vs {len(previous.get('trips', []))} before")
+    return errors
+
+
+def _fetch_previous(base: str, path: str):
+    """Raw bytes of a previously published file, or None (missing, offline, 404...)."""
+    try:
+        req = urllib.request.Request(f"{base}/{path}", headers={"User-Agent": "proximotren-pipeline"})
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            return resp.read()
+    except (OSError, ValueError):
+        return None
+
+
+def _is_feed_v2(obj) -> bool:
+    """A previous publication is only trusted if it looks like a v2 núcleo feed."""
+    return (
+        isinstance(obj, dict)
+        and obj.get("version") == 2
+        and isinstance(obj.get("name"), str)
+        and isinstance(obj.get("valid_to"), str)
+        and isinstance(obj.get("stops"), list)
+        and isinstance(obj.get("trips"), list)
+    )
+
+
+def _write_atomic(path: Path, data: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_bytes(data)
+    tmp.replace(path)
+
+
+def _dump(obj) -> bytes:
+    return json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--out", required=True, type=Path, help="output directory for feed.json")
+    parser.add_argument("--out", required=True, type=Path, help="output directory (index.json, feeds/, feed.json)")
     parser.add_argument("--zip", type=Path, help="use a local GTFS zip instead of downloading")
     parser.add_argument("--date", type=date.fromisoformat, help="service date YYYY-MM-DD (default: today in Madrid)")
-    parser.add_argument("--min-stops", type=int, default=20)
+    parser.add_argument("--min-stops", type=int, default=20, help="minimum stops for the v1 Valencia feed")
+    parser.add_argument("--previous-base", default=PAGES_BASE, help="where the previous publication lives")
     args = parser.parse_args(argv)
+    base = args.previous_base.rstrip("/")
 
     today = args.date or datetime.now(MADRID).date()
     with tempfile.TemporaryDirectory() as tmp:
@@ -342,18 +409,68 @@ def main(argv=None) -> int:
             _download(zpath)
         with zipfile.ZipFile(zpath) as z:
             z.extractall(tmp / "gtfs")
-        feed = build_feed(tmp / "gtfs", today)
+        feeds = build_nucleos(tmp / "gtfs", today)
+        try:
+            v1 = build_feed(tmp / "gtfs", today)
+            v1_errors = None
+        except (KeyError, ValueError) as e:  # e.g. Valencia Nord missing: v1 is legacy, never fatal
+            v1, v1_errors = None, [f"build failed: {e!r}"]
 
-    errors = validate_feed(feed, today, min_stops=args.min_stops)
-    if errors:
-        for e in errors:
-            print(f"error: {e}", file=sys.stderr)
+    prev_ids = set()
+    raw_index = _fetch_previous(base, "index.json")
+    if raw_index:
+        try:
+            prev_ids = {n["id"] for n in json.loads(raw_index)["nucleos"]}
+        except (ValueError, KeyError, TypeError):
+            print("warning: previous index.json unreadable", file=sys.stderr)
+
+    published = {}  # nucleo -> (raw bytes, parsed feed)
+    fresh = 0
+    for nucleo in sorted(set(feeds) | prev_ids):
+        raw_prev = _fetch_previous(base, f"feeds/{nucleo}.json")
+        prev = None
+        if raw_prev:
+            try:
+                prev = json.loads(raw_prev)
+            except ValueError:
+                prev = None
+            if not _is_feed_v2(prev):
+                print(f"warning: previous feeds/{nucleo}.json is not a v2 feed; ignored", file=sys.stderr)
+                prev = None
+        new = feeds.get(nucleo)
+        errors = validate_nucleo(new, today, prev) if new else ["missing from GTFS"]
+        if not errors:
+            published[nucleo] = (_dump(new), new)
+            fresh += 1
+        elif prev and prev["valid_to"] >= today.isoformat():
+            print(f"warning: nucleo {nucleo} kept previous: {'; '.join(errors)}", file=sys.stderr)
+            published[nucleo] = (raw_prev, prev)
+        else:
+            print(f"warning: nucleo {nucleo} omitted (no usable previous): {'; '.join(errors)}", file=sys.stderr)
+
+    if fresh == 0:
+        # Nothing new validated: fail loudly so CI alerts; Pages keeps serving the last deploy.
+        print("error: no nucleo passed validation", file=sys.stderr)
         return 1
-    args.out.mkdir(parents=True, exist_ok=True)
-    tmp_path = args.out / "feed.json.tmp"
-    tmp_path.write_text(json.dumps(feed, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    tmp_path.replace(args.out / "feed.json")
-    print(f"wrote {args.out / 'feed.json'}: {len(feed['stops'])} stops, {len(feed['trips'])} trips")
+
+    for nucleo, (raw, _) in published.items():
+        _write_atomic(args.out / "feeds" / f"{nucleo}.json", raw)
+    index = build_index({n: f for n, (_, f) in published.items()})
+    _write_atomic(args.out / "index.json", _dump(index))
+
+    if v1_errors is None:
+        v1_errors = validate_feed(v1, today, min_stops=args.min_stops)
+    if not v1_errors:
+        _write_atomic(args.out / "feed.json", _dump(v1))
+    else:
+        raw_v1 = _fetch_previous(base, "feed.json")
+        if raw_v1:
+            print(f"warning: feed.json kept previous: {'; '.join(v1_errors)}", file=sys.stderr)
+            _write_atomic(args.out / "feed.json", raw_v1)
+        else:
+            print(f"warning: feed.json omitted (no previous): {'; '.join(v1_errors)}", file=sys.stderr)
+
+    print(f"wrote {len(published)} nucleos, {len(index['stops'])} stations to {args.out}")
     return 0
 
 
