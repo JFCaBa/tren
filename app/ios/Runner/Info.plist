@@ -28,6 +28,8 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Para mostrarte la estación de Cercanías más cercana. Solo se usa con la app abierta.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Para mostrarte la estación de Cercanías más cercana.</string>
 	<key>UIApplicationSceneManifest</key>
