@@ -5,6 +5,13 @@ import 'names.dart';
 
 const lineColors = {'C1': Color(0xFF7AB3DE), 'C2': Color(0xFFF79529)};
 
+/// "ahora", "N min" under an hour, "h:mm h" from an hour on.
+String formatWait(int minutes) {
+  if (minutes <= 0) return 'ahora';
+  if (minutes < 60) return '$minutes min';
+  return '${minutes ~/ 60}:${(minutes % 60).toString().padLeft(2, '0')} h';
+}
+
 String hhmm(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
 class LineBadge extends StatelessWidget {
@@ -51,7 +58,7 @@ class DepartureRow extends StatelessWidget {
               if (d.canceled)
                 Text('✕ Cancelado', style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.error))
               else
-                Text(d.minutes == 0 ? 'ahora' : '${d.minutes} min',
+                Text(formatWait(d.minutes),
                     style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
               Row(mainAxisSize: MainAxisSize.min, children: [
                 Text(hhmm(d.estimated),

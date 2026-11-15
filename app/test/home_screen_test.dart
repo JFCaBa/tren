@@ -45,7 +45,7 @@ void main() {
     expect(find.text('Silla'), findsOneWidget);
     expect(find.text('→ València Nord'), findsWidgets); // section title + rows ending there
     expect(find.text('→ Gandia / Moixent'), findsOneWidget);
-    expect(find.text('64 min'), findsOneWidget); // T1 at Silla 18:55 + 9 min RT delay
+    expect(find.text('1:04 h'), findsOneWidget); // T1 at Silla 18:55 + 9 min RT delay
     expect(find.text('(+9)'), findsOneWidget);
     expect(find.textContaining('Datos: Renfe'), findsOneWidget);
     expect(find.textContaining(RegExp(r'actualizado a las \d\d:\d\d')), findsOneWidget);
