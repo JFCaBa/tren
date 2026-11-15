@@ -27,8 +27,10 @@ class LineBadge extends StatelessWidget {
 }
 
 class DepartureRow extends StatelessWidget {
-  const DepartureRow(this.d, {super.key});
+  const DepartureRow(this.d, {super.key, this.expanded = false, this.onTap});
   final Departure d;
+  final bool expanded;
+  final VoidCallback? onTap;
 
   String? get _delayText {
     final s = d.delaySec;
@@ -43,7 +45,7 @@ class DepartureRow extends StatelessWidget {
     final theme = Theme.of(context);
     final muted = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant);
     final delay = _delayText;
-    return Padding(
+    final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
@@ -76,6 +78,66 @@ class DepartureRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+    return InkWell(
+      onTap: onTap,
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 200),
+        alignment: Alignment.topCenter,
+        child: Column(children: [
+          row,
+          if (expanded) _StopList(key: ValueKey('stops-${d.tripId}'), d: d),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Metro-map style list of the stops still ahead, from the user's station to the end.
+class _StopList extends StatelessWidget {
+  const _StopList({super.key, required this.d});
+  final Departure d;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = lineColors[d.line] ?? Colors.grey;
+    final stops = d.stops;
+    return Padding(
+      padding: const EdgeInsets.only(left: 14, bottom: 8),
+      child: Column(children: [
+        for (var i = 0; i < stops.length; i++)
+          IntrinsicHeight(
+            child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              SizedBox(
+                width: 24,
+                child: Stack(alignment: Alignment.center, children: [
+                  Column(children: [
+                    Expanded(child: Container(width: 3, color: i == 0 ? Colors.transparent : color)),
+                    Expanded(child: Container(width: 3, color: i == stops.length - 1 ? Colors.transparent : color)),
+                  ]),
+                  Container(
+                    width: i == 0 || i == stops.length - 1 ? 12 : 8,
+                    height: i == 0 || i == stops.length - 1 ? 12 : 8,
+                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                  ),
+                ]),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Text(shortStopName(stops[i].name),
+                      style: i == 0 ? theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700) : theme.textTheme.bodyMedium),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Text(hhmm(stops[i].time), style: theme.textTheme.bodyMedium),
+              ),
+            ]),
+          ),
+      ]),
     );
   }
 }

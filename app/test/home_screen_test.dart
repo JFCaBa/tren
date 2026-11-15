@@ -64,6 +64,26 @@ void main() {
     }
   });
 
+  testWidgets('tapping a train expands its stops, one at a time', (tester) async {
+    final c = await started(tester);
+    await tester.pumpWidget(MaterialApp(home: HomeScreen(controller: c)));
+    // Silla: T1 out (→ Gandia) and T2 in (→ València Nord)
+    expect(find.byKey(const ValueKey('stops-T1')), findsNothing);
+    await tester.tap(find.text('→ Gandia'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('stops-T1')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('stops-T1')), matching: find.text('Gandia')), findsOneWidget);
+
+    await tester.tap(find.text('→ València Nord').last);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('stops-T1')), findsNothing);
+    expect(find.byKey(const ValueKey('stops-T2')), findsOneWidget);
+
+    await tester.tap(find.text('→ València Nord').last);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('stops-T2')), findsNothing);
+  });
+
   testWidgets('no realtime banner before the first poll answers', (tester) async {
     server.rtHangs = true;
     final c = AppController(

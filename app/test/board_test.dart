@@ -184,6 +184,20 @@ void main() {
     expect(d.scheduled.location.name, 'Europe/Madrid');
   });
 
+  test('departure lists stops from the station to the end with delay', () {
+    final rt = rtOf({'a': const RtTrip(delaySec: 120, canceled: false)}, now());
+    final d = computeBoard(feedOf([out('a', hm(18, 10))]), '64200', now(), rt).fromValencia!.single;
+    expect(d.stops.map((s) => s.name), ['Silla', 'Gandia']);
+    expect(d.stops.first.time, at(2026, 11, 15, 18, 12));
+    expect(d.stops.last.time, at(2026, 11, 15, 18, 57));
+  });
+
+  test('scheduled departure stops use scheduled times', () {
+    final d = computeBoard(feedOf([out('a', hm(18, 30))]), '65000', now(), null).fromValencia!.single;
+    expect(d.stops.map((s) => s.name), ['València Nord', 'Silla', 'Gandia']);
+    expect(d.stops.first.time, at(2026, 11, 15, 18, 15));
+  });
+
   test('terminal hides direction', () {
     final b = computeBoard(feedOf([inb('i', hm(18, 5)), out('o', hm(18, 30))]), '65000', now(), null);
     expect(b.toValencia, isNull);

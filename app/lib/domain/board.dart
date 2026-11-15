@@ -9,6 +9,16 @@ const _rtMaxAge = Duration(minutes: 2);
 const _feedMaxAge = Duration(days: 3);
 const _graceAfterDeparture = Duration(seconds: 60);
 
+/// A stop this train still makes, from the user's station to the end of the trip.
+class StopTime {
+  const StopTime({required this.stopId, required this.name, required this.time});
+  final String stopId;
+  final String name;
+
+  /// Estimated when the train is live (delay applied), scheduled otherwise.
+  final tz.TZDateTime time;
+}
+
 class Departure {
   const Departure({
     required this.tripId,
@@ -20,6 +30,7 @@ class Departure {
     required this.live,
     required this.canceled,
     required this.minutes,
+    this.stops = const [],
   });
 
   final String tripId;
@@ -33,6 +44,10 @@ class Departure {
   final bool live;
   final bool canceled;
   final int minutes;
+  final List<StopTime> stops;
+
+  /// One train on one service day (a trip id alone could repeat across days).
+  String get id => '$tripId@${scheduled.toIso8601String()}';
 }
 
 class Board {
@@ -74,6 +89,7 @@ Board computeBoard(Feed feed, String stopId, tz.TZDateTime now, RtSnapshot? rt, 
   ];
   final today = _iso(now.year, now.month, now.day);
 
+  final names = {for (final s in feed.stops) s.id: s.name};
   final byDir = <String, List<Departure>>{};
   final servedDirs = <String>{};
 
@@ -101,6 +117,14 @@ Board computeBoard(Feed feed, String stopId, tz.TZDateTime now, RtSnapshot? rt, 
             live: live,
             canceled: rtTrip?.canceled ?? false,
             minutes: math.max(0, estimated.difference(now).inSeconds ~/ 60),
+            stops: [
+              for (final (id, s) in trip.times.skip(idx))
+                StopTime(
+                  stopId: id,
+                  name: names[id] ?? id,
+                  time: serviceTime(loc, day.year, day.month, day.day, s).add(Duration(seconds: delay ?? 0)),
+                ),
+            ],
           ));
     }
   }

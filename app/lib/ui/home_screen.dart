@@ -7,9 +7,21 @@ import 'departure_row.dart';
 import 'names.dart';
 import 'station_picker.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.controller});
   final AppController controller;
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  AppController get controller => widget.controller;
+
+  /// [Departure.id] whose stops are shown; only one at a time.
+  String? _expanded;
+
+  void _toggle(String key) => setState(() => _expanded = _expanded == key ? null : key);
 
   Future<void> _pick(BuildContext context) async {
     final feed = controller.feed;
@@ -89,8 +101,10 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
             if (board != null) ..._warnings(context, board),
-            if (board?.toValencia != null) _Section(title: '→ València Nord', departures: board!.toValencia!),
-            if (board?.fromValencia != null) _Section(title: '→ Gandia / Moixent', departures: board!.fromValencia!),
+            if (board?.toValencia != null)
+              _Section(title: '→ València Nord', departures: board!.toValencia!, expanded: _expanded, onTap: _toggle),
+            if (board?.fromValencia != null)
+              _Section(title: '→ Gandia / Moixent', departures: board!.fromValencia!, expanded: _expanded, onTap: _toggle),
           ],
           const SizedBox(height: 24),
           Text(_footer(), textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
@@ -116,9 +130,11 @@ class HomeScreen extends StatelessWidget {
 }
 
 class _Section extends StatelessWidget {
-  const _Section({required this.title, required this.departures});
+  const _Section({required this.title, required this.departures, required this.expanded, required this.onTap});
   final String title;
   final List<Departure> departures;
+  final String? expanded;
+  final void Function(String key) onTap;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -129,7 +145,8 @@ class _Section extends StatelessWidget {
           if (departures.isEmpty)
             const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Sin trenes próximos'))
           else
-            for (final d in departures) DepartureRow(d),
+            for (final d in departures)
+              DepartureRow(d, expanded: d.id == expanded, onTap: () => onTap(d.id)),
         ]),
       );
 }
