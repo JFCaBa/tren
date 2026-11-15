@@ -11,7 +11,7 @@ Publicar gratis la app en App Store y Google Play con identidad propia, para tod
 - **Nombre:** **Andén**. Si "Andén" está cogido en App Store Connect, se usa "Andén · Próximo tren".
 - **Icono:** propuesta **B · Cuenta atrás**: tren blanco dentro de un anillo blanco que se va cerrando, sobre verde azulado `#0F766E` con anillo de fondo `#134E4A`. Diseño fuente en `.superpowers/brainstorm/…/icono-anden.html`.
 - **Precio:** app gratuita, sin anuncios ni compras.
-- **Contacto público:** jfca68@gmail.com (en las fichas de las tiendas, la política de privacidad y la página de soporte).
+- **Contacto público:** el email que indicó el usuario. En el repo va como variable `CONTACT_EMAIL` (repo variable de GitHub), y el nombre del responsable como `CONTACT_NAME`.
 - **Plataformas:** solo vertical. En iOS, solo iPhone (ya hecho en `d9fb148`).
 - **Google Play:** la cuenta personal jfcaba68@ obliga a una prueba cerrada con ≥ 12 probadores durante 14 días antes de pasar a producción. El usuario aporta los probadores.
 
