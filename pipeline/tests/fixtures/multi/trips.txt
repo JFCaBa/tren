@@ -1,0 +1,7 @@
+route_id,service_id,trip_id,trip_headsign,wheelchair_accessible,block_id,shape_id      
+10T0001C4a  ,DAILY       ,M1          ,            ,1           ,            ,            
+10T0002BUS  ,DAILY       ,MB          ,            ,1           ,            ,            
+47T0001C1   ,DAILY       ,L1          ,            ,1           ,            ,            
+60T0001C1   ,DAILY       ,B1          ,            ,1           ,            ,            
+10T0003C9   ,DAILY       ,MBUS        ,            ,1           ,            ,            
+60T0002C1   ,DAILY       ,B2          ,            ,1           ,            ,            

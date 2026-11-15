@@ -1,0 +1,7 @@
+route_id,route_short_name,route_long_name,route_type,route_color,route_text_color      
+10T0001C4a  ,C4a         ,Atocha-Parla,2           ,0070C0      ,FFFFFF      
+10T0002BUS  ,BUS         ,Atocha-Parla bus,3           ,000000      ,FFFFFF      
+47T0001C1   ,C1          ,Leon-Cistierna,2           ,            ,FFFFFF      
+60T0001C1   ,C1          ,Bilbao-Cistierna,2           ,E30613      ,FFFFFF      
+10T0003C9   ,C9          ,Bus sust    ,3           ,0070C0      ,FFFFFF      
+60T0002C1   ,C1          ,Bilbao var  ,2           ,            ,FFFFFF      

@@ -164,6 +164,135 @@ def build_feed(gtfs_dir: Path, today: date, days: int = 7) -> dict:
     }
 
 
+NUCLEO_NAMES = {
+    "10": "Madrid",
+    "20": "Asturias",
+    "30": "Sevilla",
+    "31": "Cádiz",
+    "32": "Málaga",
+    "40": "Valencia",
+    "41": "Murcia/Alicante",
+    "45": "Murcia/Cartagena",
+    "46": "Ferrol",
+    "47": "León",
+    "51": "Rodalies de Catalunya",
+    "60": "Bilbao",
+    "61": "San Sebastián",
+    "62": "Santander",
+    "70": "Zaragoza",
+}
+GREY = "9E9E9E"
+_HEX = set("0123456789abcdefABCDEF")
+
+
+def _color(c: str) -> str:
+    return c.upper() if len(c) == 6 and set(c) <= _HEX else GREY
+
+
+def build_nucleos(gtfs_dir: Path, today: date, days: int = 7) -> dict:
+    """One v2 feed per Cercanías núcleo (route_id prefix), from a single pass over stop_times."""
+    gtfs_dir = Path(gtfs_dir)
+    valid_from = today - timedelta(days=1)
+    valid_to = today + timedelta(days=days)
+    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    routes = {}  # route_id -> (nucleo, line, color)
+    for r in _rows(gtfs_dir / "routes.txt"):
+        nucleo = r["route_id"][:2]
+        is_rail = r.get("route_type", "2") in ("2", "")  # 3 = bus (replacement services)
+        if nucleo in NUCLEO_NAMES and is_rail and r["route_short_name"] and r["route_short_name"] != "BUS":
+            routes[r["route_id"]] = (nucleo, r["route_short_name"], _color(r.get("route_color", "")))
+    # One color per line: a real color beats grey; ties broken alphabetically for determinism.
+    line_colors = {}
+    for nucleo, line, color in routes.values():
+        best = line_colors.get((nucleo, line))
+        if best is None or (best == GREY and color != GREY) or (color != GREY and color < best):
+            line_colors[(nucleo, line)] = color
+    service_dates = _service_dates(gtfs_dir, valid_from, valid_to)
+
+    trips = {}
+    for r in _rows(gtfs_dir / "trips.txt"):
+        route = routes.get(r["route_id"])
+        dates = service_dates.get(r["service_id"])
+        if route and dates:
+            trips[r["trip_id"]] = (route, dates)
+
+    times = defaultdict(list)
+    for r in _rows(gtfs_dir / "stop_times.txt"):
+        if r["trip_id"] in trips:
+            t = r.get("departure_time") or r.get("arrival_time")
+            if t:
+                times[r["trip_id"]].append((int(r["stop_sequence"]), r["stop_id"], _secs(t)))
+
+    stops_all = {r["stop_id"]: r for r in _rows(gtfs_dir / "stops.txt")}
+    feeds = {}
+    multi_date = 0
+    for trip_id, ((nucleo, line, color), dates) in trips.items():
+        seq = sorted(times.get(trip_id, []))
+        if len(seq) < 2:
+            continue
+        if any(sid not in stops_all for _, sid, _ in seq):
+            print(f"warning: dropping {trip_id}: unknown stops", file=sys.stderr)
+            continue
+        if any(secs >= MAX_SECS for _, _, secs in seq):
+            print(f"warning: dropping {trip_id}: time >= 48:00:00", file=sys.stderr)
+            continue
+        if len(dates) > 1:
+            multi_date += 1
+        f = feeds.setdefault(nucleo, {"lines": {}, "stops": set(), "trips": []})
+        f["lines"][line] = line_colors[(nucleo, line)]
+        f["stops"].update(sid for _, sid, _ in seq)
+        f["trips"].append({
+            "id": trip_id,
+            "line": line,
+            "dest": stops_all[seq[-1][1]]["stop_name"],
+            "dates": sorted(d.isoformat() for d in dates),
+            "times": [[sid, secs] for _, sid, secs in seq],
+        })
+    if multi_date:
+        print(f"warning: {multi_date} trip_ids run on more than one date", file=sys.stderr)
+
+    return {
+        nucleo: {
+            "version": 2,
+            "nucleo": nucleo,
+            "name": NUCLEO_NAMES[nucleo],
+            "generated_at": generated_at,
+            "valid_from": valid_from.isoformat(),
+            "valid_to": valid_to.isoformat(),
+            "lines": dict(sorted(f["lines"].items())),
+            "stops": [
+                {
+                    "id": sid,
+                    "name": stops_all[sid]["stop_name"],
+                    "lat": float(stops_all[sid]["stop_lat"]),
+                    "lon": float(stops_all[sid]["stop_lon"]),
+                }
+                for sid in sorted(f["stops"])
+            ],
+            "trips": sorted(f["trips"], key=lambda t: t["id"]),
+        }
+        for nucleo, f in sorted(feeds.items())
+    }
+
+
+def build_index(feeds: dict) -> dict:
+    """Núcleos and every station once, with the núcleos whose trains call there."""
+    stops = {}
+    for nucleo, feed in sorted(feeds.items()):
+        for s in feed["stops"]:
+            entry = stops.setdefault(s["id"], {**s, "nucleos": []})
+            entry["nucleos"].append(nucleo)
+    return {
+        "version": 2,
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "nucleos": [
+            {"id": n, "name": f["name"], "feed": f"feeds/{n}.json"} for n, f in sorted(feeds.items())
+        ],
+        "stops": [stops[k] for k in sorted(stops)],
+    }
+
+
 def validate_feed(feed: dict, today: date, min_stops: int = 20) -> list:
     """Return a list of problems; an empty list means the feed can be published."""
     errors = []

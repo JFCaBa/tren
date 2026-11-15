@@ -1,0 +1,6 @@
+stop_id,stop_name,stop_lat,stop_lon,wheelchair_boarding      
+18000       ,Madrid-Atocha Cercanías,40.4065     ,-3.6896     ,1           
+18002       ,Parla       ,40.2360     ,-3.7670     ,1           
+05761       ,Cistierna   ,42.8030     ,-5.1250     ,1           
+05803       ,León        ,42.6000     ,-5.5700     ,1           
+99001       ,Bilbao      ,43.2600     ,-2.9300     ,1           
