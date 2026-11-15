@@ -16,11 +16,13 @@ http.Response okJson(String body, {Map<String, String> headers = const {}}) =>
 class FakeServer {
   bool feedFails = false;
   bool rtFails = false;
+  bool rtHangs = false;
   int rtCalls = 0;
 
   late final http.Client client = MockClient((req) async {
     if (req.url.host == 'gtfsrt.renfe.com') {
       rtCalls++;
+      if (rtHangs) return Completer<http.Response>().future;
       if (rtFails) throw const SocketException('offline');
       return okJson(rtBody);
     }

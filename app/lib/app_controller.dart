@@ -45,6 +45,9 @@ class AppController extends ChangeNotifier {
   String? error;
   bool needsStationPick = false;
   RtSnapshot? rt;
+
+  /// True once a realtime poll has answered or failed (no "Sin tiempo real" flash at launch).
+  bool rtAttempted = false;
   (double, double)? coords;
 
   int _locationGen = 0;
@@ -151,6 +154,7 @@ class AppController extends ChangeNotifier {
     } catch (_) {
       // Board.rtStale reflects it.
     }
+    rtAttempted = true;
     _recompute();
   }
 

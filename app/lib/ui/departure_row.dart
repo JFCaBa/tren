@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../domain/board.dart';
+import 'names.dart';
 
 const lineColors = {'C1': Color(0xFF7AB3DE), 'C2': Color(0xFFF79529)};
 
@@ -42,7 +43,7 @@ class DepartureRow extends StatelessWidget {
           LineBadge(d.line),
           const SizedBox(width: 12),
           Expanded(
-            child: Text('→ ${d.dest}', style: theme.textTheme.bodyLarge, overflow: TextOverflow.ellipsis),
+            child: Text('→ ${shortStopName(d.dest)}', style: theme.textTheme.bodyLarge, maxLines: 2, overflow: TextOverflow.ellipsis),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,

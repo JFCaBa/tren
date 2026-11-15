@@ -4,6 +4,7 @@ import 'package:timezone/timezone.dart' as tz;
 import '../app_controller.dart';
 import '../domain/board.dart';
 import 'departure_row.dart';
+import 'names.dart';
 import 'station_picker.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -78,7 +79,7 @@ class HomeScreen extends StatelessWidget {
                   Icon(c.manualStation ? Icons.place_outlined : Icons.my_location, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(c.station!.name,
+                    child: Text(shortStopName(c.station!.name),
                         style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
                         overflow: TextOverflow.ellipsis),
                   ),
@@ -100,7 +101,7 @@ class HomeScreen extends StatelessWidget {
 
   List<Widget> _warnings(BuildContext context, Board b) => [
         if (!b.feedCoversToday || b.feedStale) const _Banner('El horario puede estar desactualizado'),
-        if (b.rtStale) const _Banner('Sin tiempo real: se muestran horas previstas'),
+        if (b.rtStale && controller.rtAttempted) const _Banner('Sin tiempo real: se muestran horas previstas'),
       ];
 
   String _footer() {

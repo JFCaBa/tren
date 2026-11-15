@@ -43,7 +43,7 @@ void main() {
     final c = await started(tester);
     await tester.pumpWidget(MaterialApp(home: HomeScreen(controller: c)));
     expect(find.text('Silla'), findsOneWidget);
-    expect(find.text('→ València Nord'), findsOneWidget);
+    expect(find.text('→ València Nord'), findsWidgets); // section title + rows ending there
     expect(find.text('→ Gandia / Moixent'), findsOneWidget);
     expect(find.text('64 min'), findsOneWidget); // T1 at Silla 18:55 + 9 min RT delay
     expect(find.text('(+9)'), findsOneWidget);
@@ -51,6 +51,43 @@ void main() {
     expect(find.textContaining(RegExp(r'actualizado a las \d\d:\d\d')), findsOneWidget);
     expect(find.text('C1'), findsWidgets);
     expect(find.textContaining('→ Gandia'), findsWidgets);
+  });
+
+  testWidgets('long destinations are shortened and wrap to two lines', (tester) async {
+    final c = await started(tester);
+    await tester.pumpWidget(MaterialApp(home: HomeScreen(controller: c)));
+    expect(find.textContaining('Estació del Nord'), findsNothing);
+    final rows = tester.widgetList<Text>(find.textContaining('→ ')).where((t) => t.maxLines != null);
+    expect(rows, isNotEmpty);
+    for (final t in rows) {
+      expect(t.maxLines, 2, reason: t.data);
+    }
+  });
+
+  testWidgets('no realtime banner before the first poll answers', (tester) async {
+    server.rtHangs = true;
+    final c = AppController(
+      FeedRepository(server.client, dir),
+      RealtimeClient(server.client),
+      location,
+      await SharedPreferences.getInstance(),
+      clock: () => tz.TZDateTime(tz.getLocation('Europe/Madrid'), 2026, 11, 15, 18, 0),
+      periodic: TimerLog().create,
+    );
+    await tester.runAsync(() async {
+      c.start();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
+    await tester.pumpWidget(MaterialApp(home: HomeScreen(controller: c)));
+    expect(find.text('Silla'), findsOneWidget);
+    expect(find.textContaining('Sin tiempo real'), findsNothing);
+  });
+
+  testWidgets('realtime banner after a failed poll', (tester) async {
+    server.rtFails = true;
+    final c = await started(tester);
+    await tester.pumpWidget(MaterialApp(home: HomeScreen(controller: c)));
+    expect(find.textContaining('Sin tiempo real'), findsOneWidget);
   });
 
   testWidgets('shows retry on first-launch offline', (tester) async {

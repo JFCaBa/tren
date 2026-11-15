@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import '../data/feed.dart';
 import '../domain/nearest.dart';
 import 'departure_row.dart';
+import 'names.dart';
 
 /// Returned by [pickStation] when the user wants the nearest station again.
 const useLocationChoice = '__location__';
@@ -34,7 +35,7 @@ Future<String?> pickStation(BuildContext context, List<Stop> stops, (double, dou
           const Divider(),
           for (final s in sorted)
             ListTile(
-              title: Text(s.name),
+              title: Text(shortStopName(s.name)),
               trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                 for (final l in s.lines) Padding(padding: const EdgeInsets.only(left: 4), child: LineBadge(l)),
               ]),
