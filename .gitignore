@@ -1,0 +1,12 @@
+*.jks
+*.keystore
+key.properties
+*.mobileprovision
+*.p12
+build/
+.dart_tool/
+__pycache__/
+pipeline/out/
+.consenso/
+.superpowers/
+.DS_Store
