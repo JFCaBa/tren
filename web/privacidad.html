@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Andén · Política de privacidad</title>
+<style>
+  :root { --brand: #0F766E; --ink: #1f2933; --muted: #52606d; --bg: #ffffff; --card: #f0fdfa; }
+  @media (prefers-color-scheme: dark) { :root { --ink: #e5e7eb; --muted: #9ca3af; --bg: #0b1514; --card: #12302d; } }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--brand); color: #fff; padding: 28px 16px; }
+  header h1 { margin: 0; font-size: 28px; }
+  header p { margin: 4px 0 0; opacity: .85; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+  h2 { font-size: 20px; margin-top: 32px; }
+  .card { background: var(--card); border-radius: 12px; padding: 16px; }
+  a { color: var(--brand); }
+  @media (prefers-color-scheme: dark) { a { color: #5eead4; } }
+  small { color: var(--muted); }
+</style>
+</head>
+<body>
+<header><h1>Andén</h1><p>Política de privacidad</p></header>
+<main>
+  <div class="card"><strong>En resumen:</strong> Andén no recoge, no guarda en ningún servidor y no comparte ningún dato tuyo. No hay cuentas, ni analítica, ni anuncios.</div>
+
+  <h2>Responsable</h2>
+  <p>${CONTACT_NAME}. Contacto: <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
+
+  <h2>Ubicación</h2>
+  <p>Si le das permiso, Andén consulta tu ubicación <strong>solo mientras la usas</strong> y únicamente para saber cuál es la estación de Cercanías más cercana. El cálculo se hace en el propio teléfono: la ubicación no se envía a ningún servidor ni se guarda. Puedes negar el permiso y elegir la estación a mano.</p>
+
+  <h2>Datos guardados en tu teléfono</h2>
+  <p>La app guarda en el dispositivo la última estación consultada, los filtros de destino que elijas y una copia de los horarios para funcionar sin conexión. Se borran al desinstalar la app.</p>
+
+  <h2>Conexiones de red</h2>
+  <p>La app solo descarga información pública, sin enviar identificadores ni datos personales:</p>
+  <ul>
+    <li><code>jfcaba.github.io</code> — horarios de Cercanías ya procesados (GitHub Pages).</li>
+    <li><code>gtfsrt.renfe.com</code> — posición y retrasos de los trenes en tiempo real (datos abiertos de Renfe).</li>
+  </ul>
+  <p>Como en cualquier conexión a Internet, esos servidores reciben la dirección IP técnica necesaria para responder; Andén no la recoge ni la asocia a nada.</p>
+
+  <h2>Menores</h2>
+  <p>La app no recoge datos de nadie, tampoco de menores.</p>
+
+  <h2>Cambios</h2>
+  <p>Si esta política cambia, se publicará aquí con su nueva fecha.</p>
+
+  <p><small>Andén es una app independiente y no oficial, sin relación con Renfe. Datos: Renfe (datos abiertos).<br>Última actualización: 16 de noviembre de 2026.</small></p>
+</main>
+</body>
+</html>

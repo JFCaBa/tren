@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["pipeline/**", ".github/workflows/feed.yml"]
+    paths: ["pipeline/**", "web/**", ".github/workflows/feed.yml"]
 
 permissions:
   contents: read
@@ -30,6 +30,11 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Build feed
         run: python build_feed.py --out ../site
+      - name: Render legal and support pages
+        env:
+          CONTACT_EMAIL: ${{ vars.CONTACT_EMAIL }}
+          CONTACT_NAME: ${{ vars.CONTACT_NAME }}
+        run: python render_pages.py ../web ../site
       - uses: actions/upload-pages-artifact@v5
         with:
           path: site

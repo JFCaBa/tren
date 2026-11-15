@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Andén · Ayuda</title>
+<style>
+  :root { --brand: #0F766E; --ink: #1f2933; --muted: #52606d; --bg: #ffffff; --card: #f0fdfa; }
+  @media (prefers-color-scheme: dark) { :root { --ink: #e5e7eb; --muted: #9ca3af; --bg: #0b1514; --card: #12302d; } }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--brand); color: #fff; padding: 28px 16px; }
+  header h1 { margin: 0; font-size: 28px; }
+  header p { margin: 4px 0 0; opacity: .85; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+  h2 { font-size: 20px; margin-top: 32px; }
+  h3 { font-size: 17px; margin-bottom: 4px; }
+  .card { background: var(--card); border-radius: 12px; padding: 16px; }
+  a { color: var(--brand); }
+  @media (prefers-color-scheme: dark) { a { color: #5eead4; } }
+  small { color: var(--muted); }
+</style>
+</head>
+<body>
+<header><h1>Andén</h1><p>Próximo tren de Cercanías · Ayuda</p></header>
+<main>
+  <div class="card">Andén te dice cuánto falta para los próximos trenes de Cercanías en la estación más cercana, con los retrasos en tiempo real. Abres la app y ya está.</div>
+
+  <h2>Ciudades</h2>
+  <p>Madrid, Rodalies de Catalunya, Asturias, Valencia, Bilbao, Sevilla, Málaga, Cádiz, Santander, San Sebastián, Zaragoza, Murcia/Alicante, Murcia/Cartagena, Ferrol y León.</p>
+
+  <h2>Preguntas frecuentes</h2>
+  <h3>¿Qué significa «previsto»?</h3>
+  <p>Que para ese tren no hay dato en tiempo real ahora mismo y se muestra la hora del horario. Cuando hay dato en vivo, verás el retraso (por ejemplo, +3) y la hora ya corregida.</p>
+  <h3>¿Por qué sale una estación que no es la mía?</h3>
+  <p>Andén elige la más cercana en línea recta. Toca el nombre de la estación para elegir otra; la app la recordará. «Usar mi ubicación» vuelve al modo automático.</p>
+  <h3>¿Puedo ver solo los trenes que van a mi destino?</h3>
+  <p>Sí: toca uno o varios destinos en la fila de filtros. Se guardan para cada estación.</p>
+  <h3>¿Necesita la ubicación?</h3>
+  <p>No es obligatoria. Sin permiso, eliges la estación a mano. Más detalles en la <a href="privacidad.html">política de privacidad</a>.</p>
+  <h3>Un horario parece incorrecto</h3>
+  <p>Los horarios y retrasos proceden de los datos abiertos de Renfe y se actualizan cada noche. Si ves un error que se repite, escríbenos.</p>
+
+  <h2>Contacto</h2>
+  <p><a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
+
+  <p><small>Andén es una app independiente y no oficial, sin relación con Renfe. Datos: Renfe (datos abiertos).</small></p>
+</main>
+</body>
+</html>
