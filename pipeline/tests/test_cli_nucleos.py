@@ -101,6 +101,16 @@ class CliNucleosTest(unittest.TestCase):
             index = json.loads((out / "index.json").read_text(encoding="utf-8"))
             self.assertEqual(["10", "47", "60"], [n["id"] for n in index["nucleos"]])
 
+    def test_previous_of_another_nucleo_is_ignored(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prev = Path(tmp) / "prev"
+            (prev / "feeds").mkdir(parents=True)
+            (prev / "feeds" / "62.json").write_text(json.dumps(prev_feed("10", 3)))  # wrong núcleo inside
+            (prev / "index.json").write_text(json.dumps({"nucleos": [{"id": "62"}]}))
+            proc, out = run(tmp, "multi", prev=prev)
+            self.assertEqual(0, proc.returncode, proc.stderr)
+            self.assertFalse((out / "feeds" / "62.json").exists())
+
     def test_expired_previous_is_not_republished(self):
         with tempfile.TemporaryDirectory() as tmp:
             prev = Path(tmp) / "prev"

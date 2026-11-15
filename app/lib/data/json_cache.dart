@@ -22,13 +22,16 @@ JsonCache<NucleoIndex> indexCache(http.Client client, Directory dir) =>
     JsonCache(client, dir, url: _resolve('index.json'), name: 'index', parse: NucleoIndex.fromJson);
 
 /// [path] is the núcleo's `feed` entry in index.json (defaults to the published layout).
-JsonCache<Feed> nucleoCache(http.Client client, Directory dir, String id, {String? path, Duration? timeout}) => JsonCache(
+JsonCache<Feed> nucleoCache(http.Client client, Directory dir, String id,
+        {String? path, Duration? timeout, Duration? firstTimeout}) =>
+    JsonCache(
       client,
       dir,
       url: _resolve(path ?? 'feeds/$id.json'),
       name: 'feed_$id',
       parse: Feed.fromJson,
       timeout: timeout ?? const Duration(seconds: 15),
+      firstTimeout: firstTimeout ?? const Duration(seconds: 45),
     );
 
 /// Downloads a JSON document with a conditional GET and keeps the last good copy on disk.
@@ -41,14 +44,20 @@ class JsonCache<T> {
     required this.name,
     required T Function(Map<String, dynamic>) parse,
     this.timeout = const Duration(seconds: 15),
-  }) : _parse = parse; // ignore: prefer_initializing_formals (private field, public param name)
+    Duration? firstTimeout,
+  })  : _parse = parse, // ignore: prefer_initializing_formals (private field, public param name)
+        firstTimeout = firstTimeout ?? timeout; // ignore: prefer_initializing_formals (private field, public param name)
 
   final http.Client _client;
   final Directory _dir;
   final String url;
   final String name;
   final T Function(Map<String, dynamic>) _parse;
+  /// Limit for a refresh when a cached copy exists (falls back to it).
   final Duration timeout;
+
+  /// Limit for the first download, with nothing to fall back to (e.g. Madrid on slow 3G).
+  final Duration firstTimeout;
 
   T? _feed;
   String? _feedEtag;
@@ -91,7 +100,7 @@ class JsonCache<T> {
     final String body;
     try {
       final etag = cached != null ? _feedEtag : null;
-      resp = await _client.get(Uri.parse(url), headers: {'If-None-Match': ?etag}).timeout(timeout);
+      resp = await _client.get(Uri.parse(url), headers: {'If-None-Match': ?etag}).timeout(cached == null ? firstTimeout : timeout);
       if (resp.statusCode == 304 && cached != null) return cached;
       if (resp.statusCode != 200) throw http.ClientException('$name HTTP ${resp.statusCode}');
       body = utf8.decode(resp.bodyBytes);

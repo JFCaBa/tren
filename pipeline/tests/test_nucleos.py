@@ -22,8 +22,8 @@ class NucleosTest(unittest.TestCase):
 
     def test_one_feed_per_nucleo(self):
         self.assertEqual({"10", "47", "60"}, set(self.feeds))
-        self.assertEqual(["M1"], [t["id"] for t in self.feeds["10"]["trips"]])
-        self.assertEqual({"C4a": "0070C0"}, self.feeds["10"]["lines"])
+        self.assertEqual(["M1", "MC7"], [t["id"] for t in self.feeds["10"]["trips"]])
+        self.assertEqual({"C4a": "0070C0", "C7": "0070C0"}, self.feeds["10"]["lines"])
 
     def test_trip_schema_v2(self):
         f = self.feeds["10"]
@@ -41,7 +41,16 @@ class NucleosTest(unittest.TestCase):
 
     def test_bad_time_or_coords_drop_only_that_trip(self):
         ids = [t["id"] for t in self.feeds["10"]["trips"]]
-        self.assertEqual(["M1"], ids)
+        self.assertNotIn("BADT", ids)
+        self.assertNotIn("BADC", ids)
+
+    def test_unparseable_route_id_without_name_is_skipped(self):
+        self.assertNotIn("MW", [t["id"] for t in self.feeds["10"]["trips"]])
+        self.assertNotIn("234ZZ", self.feeds["10"]["lines"])
+
+    def test_empty_short_name_uses_route_id_suffix(self):
+        mc7 = [t for t in self.feeds["10"]["trips"] if t["id"] == "MC7"]
+        self.assertEqual("C7", mc7[0]["line"])
 
     def test_bus_route_type_excluded(self):
         self.assertNotIn("MBUS", [t["id"] for t in self.feeds["10"]["trips"]])

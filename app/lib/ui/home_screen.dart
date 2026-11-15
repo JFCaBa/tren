@@ -7,6 +7,9 @@ import 'departure_row.dart';
 import 'names.dart';
 import 'station_picker.dart';
 
+/// Beyond this, the nearest station is probably not useful; say so.
+const farFromCercaniasMeters = 25000;
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.controller});
   final AppController controller;
@@ -51,7 +54,10 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(c.error!, textAlign: TextAlign.center),
             const SizedBox(height: 16),
-            FilledButton(onPressed: c.retry, child: const Text('Reintentar')),
+            if (c.retrying)
+              const CircularProgressIndicator()
+            else
+              FilledButton(onPressed: c.retry, child: const Text('Reintentar')),
           ]),
         ),
       );
@@ -134,9 +140,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<Widget> _warnings(BuildContext context, Board b) => [
+        if (!controller.manualStation && (controller.distanceMeters ?? 0) > farFromCercaniasMeters)
+          _Banner('Estás a ${(controller.distanceMeters! / 1000).round()} km de la estación de Cercanías más cercana'),
         if (b.missingNucleos.isNotEmpty)
           _Banner('Horario incompleto: falta ${b.missingNucleos.map((n) => controller.nucleoName(n) ?? n).join(', ')}',
-              onRetry: controller.retry),
+              onRetry: controller.retrying ? null : controller.retry),
         if (!b.feedCoversToday || b.feedStale) const _Banner('El horario puede estar desactualizado'),
         if (b.rtStale && controller.rtAttempted) const _Banner('Sin tiempo real: se muestran horas previstas'),
       ];

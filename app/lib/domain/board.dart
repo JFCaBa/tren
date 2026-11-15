@@ -107,11 +107,11 @@ Board computeBoard(
   ];
   final today = _iso(now.year, now.month, now.day);
 
-  final departures = <Departure>[];
+  // Light candidates first; the per-stop list is only built for the [limit] shown.
+  final candidates = <({Departure d, Feed feed, Trip trip, int idx, tz.TZDateTime day, int? delay})>[];
   final destCount = <String, int>{};
 
   for (final feed in feeds) {
-    final names = {for (final s in feed.stops) s.id: s.name};
     for (final trip in feed.trips) {
       final idx = trip.times.indexWhere((t) => t.$1 == stopId);
       if (idx < 0 || idx == trip.times.length - 1) continue; // not served, or terminates here
@@ -127,31 +127,57 @@ Board computeBoard(
         final live = delay != null || rtTrip?.canceled == true;
         final estimated = delay != null ? scheduled.add(Duration(seconds: delay)) : scheduled;
         if (estimated.isBefore(now.subtract(_graceAfterDeparture))) continue;
-        departures.add(Departure(
-          tripId: trip.id,
-          line: trip.line,
-          dest: trip.dest,
-          scheduled: scheduled,
-          estimated: estimated,
-          delaySec: delay,
-          live: live,
-          canceled: rtTrip?.canceled ?? false,
-          minutes: math.max(0, estimated.difference(now).inSeconds ~/ 60),
-          color: feed.lineColors[trip.line] ?? greyLine,
-          stops: [
-            for (final (id, s) in trip.times.skip(idx))
-              StopTime(
-                stopId: id,
-                name: names[id] ?? id,
-                time: serviceTime(loc, day.year, day.month, day.day, s).add(Duration(seconds: delay ?? 0)),
-              ),
-          ],
+        candidates.add((
+          d: Departure(
+            tripId: trip.id,
+            line: trip.line,
+            dest: trip.dest,
+            scheduled: scheduled,
+            estimated: estimated,
+            delaySec: delay,
+            live: live,
+            canceled: rtTrip?.canceled ?? false,
+            minutes: math.max(0, estimated.difference(now).inSeconds ~/ 60),
+            color: feed.lineColors[trip.line] ?? greyLine,
+          ),
+          feed: feed,
+          trip: trip,
+          idx: idx,
+          day: day,
+          delay: delay,
         ));
       }
     }
   }
 
-  departures.sort((a, b) => a.estimated.compareTo(b.estimated));
+  candidates.sort((a, b) => a.d.estimated.compareTo(b.d.estimated));
+  final shown = candidates.take(limit).toList();
+  final names = <Feed, Map<String, String>>{
+    for (final f in {for (final c in shown) c.feed}) f: {for (final s in f.stops) s.id: s.name},
+  };
+  final departures = [
+    for (final c in shown)
+      Departure(
+        tripId: c.d.tripId,
+        line: c.d.line,
+        dest: c.d.dest,
+        scheduled: c.d.scheduled,
+        estimated: c.d.estimated,
+        delaySec: c.d.delaySec,
+        live: c.d.live,
+        canceled: c.d.canceled,
+        minutes: c.d.minutes,
+        color: c.d.color,
+        stops: [
+          for (final (id, secs) in c.trip.times.skip(c.idx))
+            StopTime(
+              stopId: id,
+              name: names[c.feed]![id] ?? id,
+              time: serviceTime(loc, c.day.year, c.day.month, c.day.day, secs).add(Duration(seconds: c.delay ?? 0)),
+            ),
+        ],
+      ),
+  ];
   final dests = destCount.keys.toList()
     ..sort((a, b) {
       final byCount = destCount[b]!.compareTo(destCount[a]!);
@@ -160,7 +186,7 @@ Board computeBoard(
   final have = {for (final f in feeds) f.nucleo};
 
   return Board(
-    departures: departures.take(limit).toList(),
+    departures: departures,
     destinations: dests,
     missingNucleos: [for (final n in requiredNucleos) if (!have.contains(n)) n],
     rtStale: !rtFresh,

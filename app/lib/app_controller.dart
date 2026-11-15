@@ -70,6 +70,12 @@ class AppController extends ChangeNotifier {
   int _locationGen = 0;
   int _stationGen = 0;
   bool _feedsSettled = false;
+
+  /// The station came from last_station while GPS is still pending: show its cache, don't download.
+  bool _stationProvisional = false;
+
+  /// A user-requested retry is running.
+  bool retrying = false;
   Future<void>? _feedsLoad; // current station's schedule load, if any
   bool _locating = false;
   bool _paused = false;
@@ -102,6 +108,11 @@ class AppController extends ChangeNotifier {
     if (!_started && _starting != null) {
       await _starting; // start() is already doing the work
       _startTimer();
+      // A pause during start drops the GPS answer: ask again so a provisional station gets confirmed.
+      if (_stationProvisional && !manualStation && !_paused) {
+        await _locate();
+        await _feedsLoad?.catchError((_) {});
+      }
       return;
     }
     _startTimer();
@@ -118,13 +129,21 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> retry() async {
-    await Future.wait([
-      _refreshIndex(),
-      if (!manualStation) _locate(requestPermission: true),
-      _pollRt(),
-      _reloadFeeds(),
-    ]);
-    await _feedsLoad?.catchError((_) {});
+    if (retrying) return;
+    retrying = true;
+    _recompute();
+    try {
+      await Future.wait([
+        _refreshIndex(),
+        if (!manualStation) _locate(requestPermission: true),
+        _pollRt(),
+        _reloadFeeds(),
+      ]);
+      await _feedsLoad?.catchError((_) {});
+    } finally {
+      retrying = false;
+      _recompute();
+    }
   }
 
   /// Leave the manual choice and go back to the nearest station.
@@ -227,13 +246,13 @@ class AppController extends ChangeNotifier {
     final saved = _prefs.getString(_lastStationKey);
     final s = saved == null ? null : _stopById(saved);
     if (s != null) {
-      _setStation(s);
+      _setStation(s, provisional: _locating);
     } else if (station == null && !_locating) {
       needsStationPick = true; // only once the location attempt has failed
     }
   }
 
-  void _setStation(IndexStop s) {
+  void _setStation(IndexStop s, {bool provisional = false}) {
     final c = coords;
     distanceMeters = c == null ? null : haversineMeters(c.$1, c.$2, s.lat, s.lon);
     needsStationPick = false;
@@ -241,15 +260,20 @@ class AppController extends ChangeNotifier {
     final nucleosChanged = !same || !listEquals(station!.nucleos, s.nucleos);
     if (same && !nucleosChanged) {
       station = s;
+      if (_stationProvisional && !provisional) {
+        _stationProvisional = false; // confirmed by GPS or by the user: now download it
+        _feedsLoad = _loadFeeds(s, ++_stationGen);
+      }
       return;
     }
+    _stationProvisional = provisional;
     station = s;
     _prefs.setString(_lastStationKey, s.id);
     if (!same) filters = _savedFilters(s.id);
     feeds = const [];
     _feedsSettled = false;
     final gen = ++_stationGen;
-    _feedsLoad = _loadFeeds(s, gen);
+    _feedsLoad = _loadFeeds(s, gen, network: !provisional);
   }
 
   Set<String> _savedFilters(String stopId) {
@@ -262,7 +286,7 @@ class AppController extends ChangeNotifier {
 
   Future<void> _reloadFeeds() {
     final s = station;
-    if (s == null) return Future.value();
+    if (s == null || _stationProvisional) return Future.value();
     return _feedsLoad = _loadFeeds(s, _stationGen);
   }
 
@@ -273,7 +297,7 @@ class AppController extends ChangeNotifier {
   }
 
   /// Cache first, then network. Results for a station the user already left are dropped.
-  Future<void> _loadFeeds(IndexStop s, int gen) async {
+  Future<void> _loadFeeds(IndexStop s, int gen, {bool network = true}) async {
     final caches = [for (final n in s.nucleos) _cacheFor(n)];
     final cached = await Future.wait(caches.map((c) => c.loadCached()));
     if (gen != _stationGen || _disposed) return;
@@ -281,6 +305,7 @@ class AppController extends ChangeNotifier {
       feeds = cached.whereType<Feed>().toList();
       _recompute();
     }
+    if (!network) return;
     final fresh = await Future.wait(caches.map((c) async {
       try {
         return await c.refresh();

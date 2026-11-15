@@ -74,8 +74,30 @@ void main() {
 
   test('timeout without cache throws DataUnavailable', () async {
     final never = Completer<http.Response>();
-    final repo = nucleoCache(MockClient((_) => never.future), dir, '40', timeout: const Duration(milliseconds: 50));
+    final repo = nucleoCache(MockClient((_) => never.future), dir, '40',
+        timeout: const Duration(milliseconds: 50), firstTimeout: const Duration(milliseconds: 50));
     await expectLater(repo.refresh(), throwsA(isA<DataUnavailable>()));
+  });
+
+  test('first download gets a longer timeout than a refresh', () async {
+    MockClient slow() => MockClient((req) async {
+          await Future<void>.delayed(const Duration(milliseconds: 150));
+          return ok(feedBody);
+        });
+    final first = nucleoCache(slow(), dir, '40', timeout: const Duration(milliseconds: 50), firstTimeout: const Duration(seconds: 2));
+    expect((await first.refresh()).nucleo, '40'); // no cache: waits up to firstTimeout
+    final again = nucleoCache(slow(), dir, '40', timeout: const Duration(milliseconds: 50), firstTimeout: const Duration(seconds: 2));
+    final cached = await again.loadCached();
+    expect(await again.refresh(), same(cached)); // has cache: short timeout, falls back
+  });
+
+  test('default first-download timeout is 45 s', () {
+    expect(nucleoCache(MockClient((_) async => http.Response('', 500)), dir, '40').firstTimeout,
+        const Duration(seconds: 45));
+  });
+
+  test('index cache keeps the short first timeout', () {
+    expect(indexCache(MockClient((_) async => http.Response('', 500)), dir).firstTimeout, const Duration(seconds: 15));
   });
 
   test('default timeout is 15 s', () {

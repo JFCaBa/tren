@@ -161,6 +161,91 @@ void main() {
     expect(c.feeds.map((f) => f.nucleo).toSet(), {'40', '10'});
   });
 
+  test('provisional saved station uses cache only until GPS answers', () async {
+    SharedPreferences.setMockInitialValues({'last_station': '64200'});
+    await warmCache();
+    server.requested.clear();
+    final c = await make();
+    final started = c.start();
+    await settle();
+    expect(c.station!.id, '64200');
+    expect(c.feeds.map((f) => f.nucleo), ['40']); // from cache
+    expect(server.requested, isNot(contains('feeds/40.json')));
+    location.answer(nearAtocha);
+    await started;
+    expect(server.requested, contains('feeds/10.json'));
+    expect(server.requested, isNot(contains('feeds/40.json')));
+  });
+
+  test('saved station is refreshed once GPS confirms it', () async {
+    SharedPreferences.setMockInitialValues({'last_station': '64200'});
+    await warmCache();
+    server.requested.clear();
+    final c = await make();
+    final started = c.start();
+    await settle();
+    location.answer(nearSilla);
+    await started;
+    expect(server.requested, contains('feeds/40.json'));
+  });
+
+  test('saved station is refreshed when location is denied', () async {
+    SharedPreferences.setMockInitialValues({'last_station': '64200'});
+    await warmCache();
+    server.requested.clear();
+    final c = await make();
+    final started = c.start();
+    await settle();
+    location.answer(null);
+    await started;
+    expect(server.requested, contains('feeds/40.json'));
+  });
+
+  test('pause during start does not leave the saved station provisional', () async {
+    SharedPreferences.setMockInitialValues({'last_station': '64200'});
+    await warmCache();
+    server.requested.clear();
+    final c = await make();
+    final started = c.start();
+    await settle();
+    c.onPause(); // invalidates the pending GPS answer
+    final resumed = c.onResume();
+    await settle();
+    location.answer(nearSilla);
+    await settle();
+    location.answer(nearSilla);
+    await Future.wait([started, resumed]);
+    await settle();
+    expect(server.requested, contains('feeds/40.json'));
+  });
+
+  test('concurrent retries run once', () async {
+    final c = await startedAt(nearSilla);
+    server.requested.clear();
+    server.hold('index.json');
+    final a = c.retry(), b = c.retry();
+    await settle();
+    server.release('index.json');
+    location.answer(nearSilla);
+    await Future.wait([a, b]);
+    expect(server.requested.where((p) => p == 'index.json').length, 1);
+  });
+
+  test('retrying flag while retry runs', () async {
+    server.feedFails = true;
+    final c = await startedAt(nearSilla);
+    expect(c.retrying, isFalse);
+    server.feedFails = false;
+    server.hold('index.json');
+    final r = c.retry();
+    await settle();
+    expect(c.retrying, isTrue);
+    server.release('index.json');
+    location.answer(nearSilla);
+    await r;
+    expect(c.retrying, isFalse);
+  });
+
   test('filters persist per station', () async {
     final c = await startedAt(nearSilla);
     c.toggleFilter('Gandia');

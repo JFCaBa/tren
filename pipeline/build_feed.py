@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 import math
+import re
 import sys
 import tempfile
 import time
@@ -183,6 +184,7 @@ NUCLEO_NAMES = {
     "70": "Zaragoza",
 }
 GREY = "9E9E9E"
+_ROUTE_ID = re.compile(r"^\d{2}T\d{4}([A-Za-z0-9]+)$")
 _HEX = set("0123456789abcdefABCDEF")
 
 
@@ -201,8 +203,11 @@ def build_nucleos(gtfs_dir: Path, today: date, days: int = 7) -> dict:
     for r in _rows(gtfs_dir / "routes.txt"):
         nucleo = r["route_id"][:2]
         is_rail = r.get("route_type", "2") in ("2", "")  # 3 = bus (replacement services)
-        if nucleo in NUCLEO_NAMES and is_rail and r["route_short_name"] and r["route_short_name"] != "BUS":
-            routes[r["route_id"]] = (nucleo, r["route_short_name"], _color(r.get("route_color", "")))
+        # Renfe route_id is "<núcleo:2><T><4 digits><line>"; use that line if the short name is empty.
+        m = _ROUTE_ID.match(r["route_id"])
+        line = r["route_short_name"] or (m.group(1) if m else "")
+        if nucleo in NUCLEO_NAMES and is_rail and line and line != "BUS":
+            routes[r["route_id"]] = (nucleo, line, _color(r.get("route_color", "")))
     # One color per line: a real color beats grey; ties broken alphabetically for determinism.
     line_colors = {}
     for nucleo, line, color in routes.values():
@@ -388,11 +393,12 @@ def _fetch_previous(base: str, path: str, attempts: int = 2):
     raise PreviousUnreachable(f"{path}: {err}")
 
 
-def _is_feed_v2(obj) -> bool:
-    """A previous publication is only trusted if it looks like a v2 núcleo feed."""
+def _is_feed_v2(obj, nucleo: str) -> bool:
+    """A previous publication is only trusted if it looks like this núcleo's v2 feed."""
     return (
         isinstance(obj, dict)
         and obj.get("version") == 2
+        and obj.get("nucleo") == nucleo
         and isinstance(obj.get("name"), str)
         and isinstance(obj.get("valid_to"), str)
         and isinstance(obj.get("stops"), list)
@@ -457,7 +463,7 @@ def main(argv=None) -> int:
                     prev = json.loads(raw_prev)
                 except ValueError:
                     prev = None
-                if not _is_feed_v2(prev):
+                if not _is_feed_v2(prev, nucleo):
                     print(f"warning: previous feeds/{nucleo}.json is not a v2 feed; ignored", file=sys.stderr)
                     prev = None
             new = feeds.get(nucleo)

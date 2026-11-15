@@ -149,6 +149,34 @@ void main() {
     expect(find.textContaining('Horario incompleto: falta Madrid'), findsOneWidget);
   });
 
+  testWidgets('warns when far from any Cercanías station', (tester) async {
+    location.immediate = (37.1773, -3.5986); // Granada
+    final c = await started(tester);
+    await show(tester, c);
+    expect(find.textContaining('km de la estación de Cercanías más cercana'), findsOneWidget);
+  });
+
+  testWidgets('no far warning near a station', (tester) async {
+    final c = await started(tester);
+    await show(tester, c);
+    expect(find.textContaining('km de la estación de Cercanías más cercana'), findsNothing);
+  });
+
+  testWidgets('retry shows progress instead of the button', (tester) async {
+    server.feedFails = true;
+    final c = await started(tester);
+    server.feedFails = false;
+    server.hold('index.json');
+    await tester.runAsync(() async {
+      c.retry();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    await show(tester, c);
+    expect(find.text('Reintentar'), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    server.release('index.json');
+  });
+
   testWidgets('shows retry on first-launch offline', (tester) async {
     server.feedFails = true;
     final c = await started(tester);
