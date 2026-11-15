@@ -1,0 +1,6 @@
+stop_id,stop_name,stop_lat,stop_lon,wheelchair_boarding      
+65000       ,València-Estació del Nord,39.4669305  ,-0.3772239  ,1           
+64200       ,Silla       ,39.3619548  ,-0.4149813  ,1           
+69110       ,Gandia      ,38.9705140  ,-0.1797829  ,1           
+64203       ,Benifaió    ,39.2800000  ,-0.4300000  ,1           
+99999       ,Madrid Test ,40.4000000  ,-3.7000000  ,1           

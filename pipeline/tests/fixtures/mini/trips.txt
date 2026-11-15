@@ -1,0 +1,10 @@
+route_id,service_id,trip_id,trip_headsign,wheelchair_accessible,block_id,shape_id      
+40T0001C1   ,SDAY        ,T_OUT       ,            ,1           ,            ,            
+40T0001C1   ,WEEK        ,T_IN        ,            ,1           ,            ,            
+40T0005C2   ,WEEK        ,T_C2S       ,            ,1           ,            ,            
+40T0001C1   ,WEEK        ,T_NIGHT     ,            ,1           ,            ,            
+40T0001C1   ,WEEK        ,T_48        ,            ,1           ,            ,            
+10T0001C1   ,WEEK        ,T_MAD       ,            ,1           ,            ,            
+40T0007C3   ,WEEK        ,T_C3        ,            ,1           ,            ,            
+40T0001C1   ,WEEK        ,T_GAP       ,            ,1           ,            ,            
+40T0001C1   ,WEEK        ,T_BADSTOP   ,            ,1           ,            ,            

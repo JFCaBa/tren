@@ -1,0 +1,5 @@
+route_id,route_short_name,route_long_name,route_type,route_color,route_text_color      
+40T0001C1   ,C1          ,Valencia Nord-Gandia,2           ,7AB3DE      ,FFFFFF      
+40T0005C2   ,C2          ,Valencia Nord-Moixent,2           ,F79529      ,FFFFFF      
+10T0001C1   ,C1          ,Principe Pio-Aeropuerto,2           ,75B6E0      ,FFFFFF      
+40T0007C3   ,C3          ,Valencia Nord-Utiel,2           ,7A2780      ,FFFFFF      
