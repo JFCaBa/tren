@@ -4,9 +4,9 @@ import 'package:proximotren/domain/nearest.dart';
 
 void main() {
   const stops = [
-    Stop(id: '65000', name: 'València Nord', lat: 39.4669305, lon: -0.3772239, lines: ['C1']),
-    Stop(id: '64200', name: 'Silla', lat: 39.3619548, lon: -0.4149813, lines: ['C1']),
-    Stop(id: '69110', name: 'Gandia', lat: 38.9705140, lon: -0.1797829, lines: ['C1']),
+    Stop(id: '65000', name: 'València Nord', lat: 39.4669305, lon: -0.3772239),
+    Stop(id: '64200', name: 'Silla', lat: 39.3619548, lon: -0.4149813),
+    Stop(id: '69110', name: 'Gandia', lat: 38.9705140, lon: -0.1797829),
   ];
 
   test('picks closest stop', () {

@@ -1,0 +1,9 @@
+{"version":2,"nucleo":"40","name":"Valencia","generated_at":"2026-11-15T03:00:00Z","valid_from":"2026-11-14","valid_to":"2026-11-22",
+ "lines":{"C1":"7AB3DE","C2":"F79529"},
+ "stops":[{"id":"65000","name":"València-Estació del Nord","lat":39.4669305,"lon":-0.3772239},
+          {"id":"64200","name":"Silla","lat":39.3619548,"lon":-0.4149813},
+          {"id":"69110","name":"Gandia","lat":38.970514,"lon":-0.1797829},
+          {"id":"X1","name":"Compartida","lat":41.0,"lon":-1.0}],
+ "trips":[{"id":"T1","line":"C1","dest":"Gandia","dates":["2026-11-15"],"times":[["65000",67200],["64200",68100],["69110",70800]]},
+          {"id":"T2","line":"C2","dest":"València-Estació del Nord","dates":["2026-11-15","2026-11-16"],"times":[["64200",68400],["65000",69300]]},
+          {"id":"TX","line":"C1","dest":"Gandia","dates":["2026-11-15"],"times":[["X1",68000],["69110",69000]]}]}

@@ -6,18 +6,25 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:proximotren/location.dart';
 
-final feedBody = File('test/fixtures/feed.json').readAsStringSync();
 final rtBody = File('test/fixtures/trip_updates.json').readAsStringSync();
+String fixture(String name) => File('test/fixtures/$name').readAsStringSync();
 
 http.Response okJson(String body, {Map<String, String> headers = const {}}) =>
     http.Response.bytes(utf8.encode(body), 200, headers: {'content-type': 'application/json; charset=utf-8', ...headers});
 
-/// Serves the feed and RT fixtures; counts RT calls; can fail either.
+/// Serves index.json, `feeds/<id>.json` and the RT fixture. Each path can fail or be held back.
 class FakeServer {
-  bool feedFails = false;
+  bool feedFails = false; // every jfcaba.github.io request fails
+  String? indexOverride; // served instead of fixtures/index.json
+  final failing = <String>{}; // e.g. 'feeds/10.json'
+  final holds = <String, Completer<void>>{}; // path -> gate
   bool rtFails = false;
   bool rtHangs = false;
   int rtCalls = 0;
+  final requested = <String>[];
+
+  void hold(String path) => holds[path] = Completer<void>();
+  void release(String path) => holds.remove(path)?.complete();
 
   late final http.Client client = MockClient((req) async {
     if (req.url.host == 'gtfsrt.renfe.com') {
@@ -26,8 +33,17 @@ class FakeServer {
       if (rtFails) throw const SocketException('offline');
       return okJson(rtBody);
     }
-    if (feedFails) throw const SocketException('offline');
-    return okJson(feedBody);
+    final path = req.url.path.replaceFirst('/tren/', '');
+    requested.add(path);
+    final gate = holds[path];
+    if (gate != null) await gate.future;
+    if (feedFails || failing.contains(path)) throw const SocketException('offline');
+    return switch (path) {
+      'index.json' => okJson(indexOverride ?? fixture('index.json')),
+      'feeds/40.json' => okJson(fixture('feed_40.json')),
+      'feeds/10.json' => okJson(fixture('feed_10.json')),
+      _ => http.Response('not found', 404),
+    };
   });
 }
 
@@ -35,7 +51,7 @@ class FakeServer {
 class FakeLocation implements LocationSource {
   final pending = <Completer<(double, double)?>>[];
 
-  /// When set, answers immediately (e.g. before the feed download finishes).
+  /// When set, answers immediately (e.g. before downloads finish).
   (double, double)? immediate;
 
   /// requestPermission flag of every call, in order.
@@ -60,6 +76,8 @@ class FakeLocation implements LocationSource {
 
 const nearSilla = (39.3625, -0.4145);
 const nearGandia = (38.9710, -0.1790);
+const nearAtocha = (40.4067, -3.6893);
+const nearShared = (41.0001, -1.0001);
 
 /// Records periodic timers so tests can count the live ones.
 class TimerLog {

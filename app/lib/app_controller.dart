@@ -1,44 +1,61 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import 'data/feed.dart';
-import 'data/feed_repository.dart';
+import 'data/json_cache.dart';
+import 'data/nucleo_index.dart';
 import 'data/realtime.dart';
 import 'domain/board.dart';
 import 'domain/nearest.dart';
 import 'location.dart';
 
 const _lastStationKey = 'last_station';
+String _filtersKey(String stopId) => 'filters_$stopId';
 const rtInterval = Duration(seconds: 30);
 
 typedef PeriodicTimerFactory = Timer Function(Duration, void Function(Timer));
 
 tz.TZDateTime madridNow() => tz.TZDateTime.now(tz.getLocation('Europe/Madrid'));
 
-/// Orchestrates feed, location and realtime, and exposes what the screen shows.
+/// Orchestrates the station index, núcleo schedules, location and realtime,
+/// and exposes what the screen shows.
 class AppController extends ChangeNotifier {
   AppController(
-    this._repo,
+    this._client,
+    this._cacheDir,
     this._rtClient,
     this._location,
     this._prefs, {
     tz.TZDateTime Function()? clock,
     PeriodicTimerFactory? periodic,
   })  : _clock = clock ?? madridNow,
-        _periodic = periodic ?? Timer.periodic;
+        _periodic = periodic ?? Timer.periodic,
+        _indexCache = indexCache(_client, _cacheDir);
 
-  final FeedRepository _repo;
+  final http.Client _client;
+  final Directory _cacheDir;
   final RealtimeClient _rtClient;
   final LocationSource _location;
   final SharedPreferences _prefs;
   final tz.TZDateTime Function() _clock;
   final PeriodicTimerFactory _periodic;
+  final JsonCache<NucleoIndex> _indexCache;
+  final _nucleoCaches = <String, JsonCache<Feed>>{};
 
-  Feed? feed;
-  Stop? station;
+  NucleoIndex? index;
+  IndexStop? station;
+
+  /// Schedules of the current station's núcleos (never mixed with a previous station's).
+  List<Feed> feeds = const [];
+
+  /// Destinations the list is filtered by; empty = all.
+  Set<String> filters = {};
   double? distanceMeters;
   bool manualStation = false;
   Board? board;
@@ -51,6 +68,9 @@ class AppController extends ChangeNotifier {
   (double, double)? coords;
 
   int _locationGen = 0;
+  int _stationGen = 0;
+  bool _feedsSettled = false;
+  Future<void>? _feedsLoad; // current station's schedule load, if any
   bool _locating = false;
   bool _paused = false;
   Future<void>? _starting;
@@ -60,17 +80,20 @@ class AppController extends ChangeNotifier {
 
   tz.TZDateTime now() => _clock();
 
+  String? nucleoName(String id) => index?.nucleo(id)?.name;
+
   /// First load. Safe to call once; later calls return the same future.
   Future<void> start() => _starting ??= _start();
 
   Future<void> _start() async {
     _locating = true; // don't ask to pick a station before GPS has had its chance
-    feed = await _repo.loadCached();
+    index = await _indexCache.loadCached();
     if (_disposed) return;
     _resolveStation();
     _recompute();
     _startTimer();
-    await Future.wait([_refreshFeed(), _locate(requestPermission: true), _pollRt()]);
+    await Future.wait([_refreshIndex(), _locate(requestPermission: true), _pollRt()]);
+    await _feedsLoad?.catchError((_) {});
     _started = true;
   }
 
@@ -82,7 +105,8 @@ class AppController extends ChangeNotifier {
       return;
     }
     _startTimer();
-    await Future.wait([_refreshFeed(), if (!manualStation) _locate(), _pollRt()]);
+    await Future.wait([_refreshIndex(), if (!manualStation) _locate(), _pollRt(), _reloadFeeds()]);
+    await _feedsLoad?.catchError((_) {});
   }
 
   void onPause() {
@@ -93,13 +117,21 @@ class AppController extends ChangeNotifier {
     _timer = null;
   }
 
-  Future<void> retry() =>
-      Future.wait([_refreshFeed(), if (!manualStation) _locate(requestPermission: true), _pollRt()]);
+  Future<void> retry() async {
+    await Future.wait([
+      _refreshIndex(),
+      if (!manualStation) _locate(requestPermission: true),
+      _pollRt(),
+      _reloadFeeds(),
+    ]);
+    await _feedsLoad?.catchError((_) {});
+  }
 
   /// Leave the manual choice and go back to the nearest station.
-  Future<void> useLocation() {
+  Future<void> useLocation() async {
     manualStation = false;
-    return _locate(requestPermission: true);
+    await _locate(requestPermission: true);
+    await _feedsLoad?.catchError((_) {});
   }
 
   void selectStation(String stopId) {
@@ -112,11 +144,26 @@ class AppController extends ChangeNotifier {
     _recompute();
   }
 
+  void toggleFilter(String dest) {
+    final next = {...filters};
+    if (!next.remove(dest)) next.add(dest);
+    _setFilters(next);
+  }
+
+  void clearFilters() => _setFilters({});
+
   @override
   void dispose() {
     _disposed = true;
     _timer?.cancel();
     super.dispose();
+  }
+
+  void _setFilters(Set<String> next) {
+    filters = next;
+    final s = station;
+    if (s != null) _prefs.setString(_filtersKey(s.id), jsonEncode(next.toList()..sort()));
+    _recompute();
   }
 
   void _startTimer() {
@@ -126,12 +173,12 @@ class AppController extends ChangeNotifier {
     _timer = _periodic(rtInterval, (_) => _pollRt());
   }
 
-  Future<void> _refreshFeed() async {
+  Future<void> _refreshIndex() async {
     try {
-      feed = await _repo.refresh();
+      index = await _indexCache.refresh();
       error = null;
-    } on FeedUnavailable {
-      if (feed == null) error = 'No se ha podido descargar el horario. Comprueba la conexión.';
+    } on DataUnavailable {
+      if (index == null) error = 'No se ha podido descargar el horario. Comprueba la conexión.';
     }
     _resolveStation();
     _recompute();
@@ -158,23 +205,23 @@ class AppController extends ChangeNotifier {
     _recompute();
   }
 
-  Stop? _stopById(String id) {
-    for (final s in feed?.stops ?? const <Stop>[]) {
+  IndexStop? _stopById(String id) {
+    for (final s in index?.stops ?? const <IndexStop>[]) {
       if (s.id == id) return s;
     }
     return null;
   }
 
   void _resolveStation() {
-    final f = feed;
-    if (f == null || f.stops.isEmpty) return;
+    final idx = index;
+    if (idx == null || idx.stops.isEmpty) return;
     if (manualStation && station != null) {
       _setStation(_stopById(station!.id) ?? station!);
       return;
     }
     final c = coords;
     if (c != null) {
-      _setStation(nearestStop(f.stops, c.$1, c.$2).$1);
+      _setStation(nearest(idx.stops, c.$1, c.$2, latOf: (s) => s.lat, lonOf: (s) => s.lon).$1);
       return;
     }
     final saved = _prefs.getString(_lastStationKey);
@@ -186,17 +233,85 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  void _setStation(Stop s) {
-    station = s;
-    needsStationPick = false;
+  void _setStation(IndexStop s) {
     final c = coords;
     distanceMeters = c == null ? null : haversineMeters(c.$1, c.$2, s.lat, s.lon);
+    needsStationPick = false;
+    final same = station?.id == s.id;
+    final nucleosChanged = !same || !listEquals(station!.nucleos, s.nucleos);
+    if (same && !nucleosChanged) {
+      station = s;
+      return;
+    }
+    station = s;
     _prefs.setString(_lastStationKey, s.id);
+    if (!same) filters = _savedFilters(s.id);
+    feeds = const [];
+    _feedsSettled = false;
+    final gen = ++_stationGen;
+    _feedsLoad = _loadFeeds(s, gen);
+  }
+
+  Set<String> _savedFilters(String stopId) {
+    try {
+      return {...(jsonDecode(_prefs.getString(_filtersKey(stopId)) ?? '[]') as List).cast<String>()};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> _reloadFeeds() {
+    final s = station;
+    if (s == null) return Future.value();
+    return _feedsLoad = _loadFeeds(s, _stationGen);
+  }
+
+  /// One cache per núcleo and feed path (a new path in the index gets a new cache).
+  JsonCache<Feed> _cacheFor(String nucleo) {
+    final path = index?.nucleo(nucleo)?.feedPath;
+    return _nucleoCaches.putIfAbsent('$nucleo|$path', () => nucleoCache(_client, _cacheDir, nucleo, path: path));
+  }
+
+  /// Cache first, then network. Results for a station the user already left are dropped.
+  Future<void> _loadFeeds(IndexStop s, int gen) async {
+    final caches = [for (final n in s.nucleos) _cacheFor(n)];
+    final cached = await Future.wait(caches.map((c) => c.loadCached()));
+    if (gen != _stationGen || _disposed) return;
+    if (feeds.isEmpty) {
+      feeds = cached.whereType<Feed>().toList();
+      _recompute();
+    }
+    final fresh = await Future.wait(caches.map((c) async {
+      try {
+        return await c.refresh();
+      } on DataUnavailable {
+        return null;
+      }
+    }));
+    if (gen != _stationGen || _disposed) return;
+    feeds = [
+      for (var i = 0; i < caches.length; i++)
+        if ((fresh[i] ?? cached[i]) != null) (fresh[i] ?? cached[i])!,
+    ];
+    _feedsSettled = true;
+    _recompute();
+    _reconcileFilters(s);
+  }
+
+  /// Drop saved destinations that no longer exist, once every núcleo of the station is loaded.
+  void _reconcileFilters(IndexStop s) {
+    final b = board;
+    if (b == null || filters.isEmpty || feeds.length < s.nucleos.length) return;
+    final all = b.destinations.toSet(); // computed before the filter is applied
+    final kept = filters.where(all.contains).toSet();
+    if (kept.length != filters.length) _setFilters(kept);
   }
 
   void _recompute() {
-    final f = feed, s = station;
-    board = (f != null && s != null) ? computeBoard(f, s.id, _clock(), rt) : null;
+    final s = station;
+    board = (s == null || (feeds.isEmpty && !_feedsSettled))
+        ? null
+        : computeBoard(feeds, s.id, _clock(), rt, destinations: filters, requiredNucleos: s.nucleos);
     if (!_disposed) notifyListeners();
   }
 }

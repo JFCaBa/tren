@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 
 import 'app_controller.dart';
-import 'data/feed_repository.dart';
 import 'data/realtime.dart';
 import 'location.dart';
 import 'ui/home_screen.dart';
@@ -15,7 +14,8 @@ Future<void> main() async {
   tzdata.initializeTimeZones();
   final client = http.Client();
   final controller = AppController(
-    FeedRepository(client, await getApplicationSupportDirectory()),
+    client,
+    await getApplicationSupportDirectory(),
     RealtimeClient(client),
     GeolocatorLocationSource(),
     await SharedPreferences.getInstance(),

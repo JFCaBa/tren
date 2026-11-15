@@ -30,6 +30,7 @@ class Departure {
     required this.live,
     required this.canceled,
     required this.minutes,
+    this.color = greyLine,
     this.stops = const [],
   });
 
@@ -44,6 +45,9 @@ class Departure {
   final bool live;
   final bool canceled;
   final int minutes;
+
+  /// ARGB line color from the núcleo feed.
+  final int color;
   final List<StopTime> stops;
 
   /// One train on one service day (a trip id alone could repeat across days).
@@ -52,16 +56,22 @@ class Departure {
 
 class Board {
   const Board({
-    required this.toValencia,
-    required this.fromValencia,
+    required this.departures,
+    required this.destinations,
+    required this.missingNucleos,
     required this.rtStale,
     required this.feedStale,
     required this.feedCoversToday,
   });
 
-  /// Null when no trip in that direction serves the stop (e.g. towards València Nord at València Nord).
-  final List<Departure>? toValencia;
-  final List<Departure>? fromValencia;
+  /// Next trains from the station, by estimated time, after applying the destination filter.
+  final List<Departure> departures;
+
+  /// Every destination reachable from the station in the feed window, most frequent first.
+  final List<String> destinations;
+
+  /// Núcleos the station needs whose schedule is not available.
+  final List<String> missingNucleos;
   final bool rtStale;
   final bool feedStale;
   final bool feedCoversToday;
@@ -76,7 +86,15 @@ tz.TZDateTime serviceTime(tz.Location loc, int y, int m, int d, int secs) =>
     tz.TZDateTime(loc, y, m, d, 12).subtract(const Duration(hours: 12)).add(Duration(seconds: secs));
 
 /// Service days and civil times are always Renfe's (Europe/Madrid), whatever zone [now] is in.
-Board computeBoard(Feed feed, String stopId, tz.TZDateTime now, RtSnapshot? rt, {int perDirection = 3}) {
+Board computeBoard(
+  List<Feed> feeds,
+  String stopId,
+  tz.TZDateTime now,
+  RtSnapshot? rt, {
+  Set<String> destinations = const {},
+  int limit = 8,
+  List<String> requiredNucleos = const [],
+}) {
   final loc = tz.getLocation('Europe/Madrid');
   now = tz.TZDateTime.from(now, loc);
   final rtFresh = rt != null &&
@@ -89,58 +107,64 @@ Board computeBoard(Feed feed, String stopId, tz.TZDateTime now, RtSnapshot? rt, 
   ];
   final today = _iso(now.year, now.month, now.day);
 
-  final names = {for (final s in feed.stops) s.id: s.name};
-  final byDir = <String, List<Departure>>{};
-  final servedDirs = <String>{};
+  final departures = <Departure>[];
+  final destCount = <String, int>{};
 
-  for (final trip in feed.trips) {
-    final idx = trip.times.indexWhere((t) => t.$1 == stopId);
-    if (idx < 0 || idx == trip.times.length - 1) continue; // not served, or terminates here
-    servedDirs.add(trip.dir);
-    final secs = trip.times[idx].$2;
-    final rtTrip = rtFresh && trip.dates.length == 1 ? rt.trips[trip.id] : null;
+  for (final feed in feeds) {
+    final names = {for (final s in feed.stops) s.id: s.name};
+    for (final trip in feed.trips) {
+      final idx = trip.times.indexWhere((t) => t.$1 == stopId);
+      if (idx < 0 || idx == trip.times.length - 1) continue; // not served, or terminates here
+      destCount[trip.dest] = (destCount[trip.dest] ?? 0) + 1;
+      if (destinations.isNotEmpty && !destinations.contains(trip.dest)) continue;
+      final secs = trip.times[idx].$2;
+      final rtTrip = rtFresh && trip.dates.length == 1 ? rt.trips[trip.id] : null;
 
-    for (final day in days) {
-      if (!trip.dates.contains(_iso(day.year, day.month, day.day))) continue;
-      final scheduled = serviceTime(loc, day.year, day.month, day.day, secs);
-      final delay = rtTrip?.canceled == true ? null : rtTrip?.delaySec;
-      final live = delay != null || rtTrip?.canceled == true;
-      final estimated = delay != null ? scheduled.add(Duration(seconds: delay)) : scheduled;
-      if (estimated.isBefore(now.subtract(_graceAfterDeparture))) continue;
-      byDir.putIfAbsent(trip.dir, () => []).add(Departure(
-            tripId: trip.id,
-            line: trip.line,
-            dest: trip.dest,
-            scheduled: scheduled,
-            estimated: estimated,
-            delaySec: delay,
-            live: live,
-            canceled: rtTrip?.canceled ?? false,
-            minutes: math.max(0, estimated.difference(now).inSeconds ~/ 60),
-            stops: [
-              for (final (id, s) in trip.times.skip(idx))
-                StopTime(
-                  stopId: id,
-                  name: names[id] ?? id,
-                  time: serviceTime(loc, day.year, day.month, day.day, s).add(Duration(seconds: delay ?? 0)),
-                ),
-            ],
-          ));
+      for (final day in days) {
+        if (!trip.dates.contains(_iso(day.year, day.month, day.day))) continue;
+        final scheduled = serviceTime(loc, day.year, day.month, day.day, secs);
+        final delay = rtTrip?.canceled == true ? null : rtTrip?.delaySec;
+        final live = delay != null || rtTrip?.canceled == true;
+        final estimated = delay != null ? scheduled.add(Duration(seconds: delay)) : scheduled;
+        if (estimated.isBefore(now.subtract(_graceAfterDeparture))) continue;
+        departures.add(Departure(
+          tripId: trip.id,
+          line: trip.line,
+          dest: trip.dest,
+          scheduled: scheduled,
+          estimated: estimated,
+          delaySec: delay,
+          live: live,
+          canceled: rtTrip?.canceled ?? false,
+          minutes: math.max(0, estimated.difference(now).inSeconds ~/ 60),
+          color: feed.lineColors[trip.line] ?? greyLine,
+          stops: [
+            for (final (id, s) in trip.times.skip(idx))
+              StopTime(
+                stopId: id,
+                name: names[id] ?? id,
+                time: serviceTime(loc, day.year, day.month, day.day, s).add(Duration(seconds: delay ?? 0)),
+              ),
+          ],
+        ));
+      }
     }
   }
 
-  List<Departure>? pick(String dir) {
-    if (!servedDirs.contains(dir)) return null;
-    final list = byDir[dir] ?? [];
-    list.sort((a, b) => a.estimated.compareTo(b.estimated));
-    return list.take(perDirection).toList();
-  }
+  departures.sort((a, b) => a.estimated.compareTo(b.estimated));
+  final dests = destCount.keys.toList()
+    ..sort((a, b) {
+      final byCount = destCount[b]!.compareTo(destCount[a]!);
+      return byCount != 0 ? byCount : a.compareTo(b);
+    });
+  final have = {for (final f in feeds) f.nucleo};
 
   return Board(
-    toValencia: pick('in'),
-    fromValencia: pick('out'),
+    departures: departures.take(limit).toList(),
+    destinations: dests,
+    missingNucleos: [for (final n in requiredNucleos) if (!have.contains(n)) n],
     rtStale: !rtFresh,
-    feedStale: now.difference(feed.generatedAt) > _feedMaxAge,
-    feedCoversToday: feed.validFrom.compareTo(today) <= 0 && today.compareTo(feed.validTo) <= 0,
+    feedStale: feeds.any((f) => now.difference(f.generatedAt) > _feedMaxAge),
+    feedCoversToday: feeds.isNotEmpty && feeds.every((f) => f.validFrom.compareTo(today) <= 0 && today.compareTo(f.validTo) <= 0),
   );
 }

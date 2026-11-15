@@ -3,8 +3,6 @@ import 'package:material_ui/material_ui.dart';
 import '../domain/board.dart';
 import 'names.dart';
 
-const lineColors = {'C1': Color(0xFF7AB3DE), 'C2': Color(0xFFF79529)};
-
 /// "ahora", "N min" under an hour, "h:mm h" from an hour on.
 String formatWait(int minutes) {
   if (minutes <= 0) return 'ahora';
@@ -15,13 +13,16 @@ String formatWait(int minutes) {
 String hhmm(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
 class LineBadge extends StatelessWidget {
-  const LineBadge(this.line, {super.key});
+  const LineBadge(this.line, this.color, {super.key});
   final String line;
+
+  /// ARGB from the núcleo feed.
+  final int color;
 
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(color: lineColors[line] ?? Colors.grey, borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(color: Color(color), borderRadius: BorderRadius.circular(6)),
         child: Text(line, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
       );
 }
@@ -49,7 +50,7 @@ class DepartureRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          LineBadge(d.line),
+          LineBadge(d.line, d.color),
           const SizedBox(width: 12),
           Expanded(
             child: Text('→ ${shortStopName(d.dest)}', style: theme.textTheme.bodyLarge, maxLines: 2, overflow: TextOverflow.ellipsis),
@@ -101,7 +102,7 @@ class _StopList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = lineColors[d.line] ?? Colors.grey;
+    final color = Color(d.color);
     final stops = d.stops;
     return Padding(
       padding: const EdgeInsets.only(left: 14, bottom: 8),

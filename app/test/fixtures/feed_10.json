@@ -1,0 +1,10 @@
+{"version":2,"nucleo":"10","name":"Madrid","generated_at":"2026-11-15T03:00:00Z","valid_from":"2026-11-14","valid_to":"2026-11-22",
+ "lines":{"C1":"75B6E0","C4a":"0070C0"},
+ "stops":[{"id":"17000","name":"Madrid-Chamartín-Clara Campoamor","lat":40.4722,"lon":-3.6825},
+          {"id":"18000","name":"Madrid-Atocha Cercanías","lat":40.4065,"lon":-3.6896},
+          {"id":"18002","name":"Parla","lat":40.236,"lon":-3.767},
+          {"id":"X1","name":"Compartida","lat":41.0,"lon":-1.0}],
+ "trips":[{"id":"M1","line":"C4a","dest":"Parla","dates":["2026-11-15"],"times":[["17000",66600],["18000",67200],["18002",68400]]},
+          {"id":"M2","line":"C1","dest":"Madrid-Chamartín-Clara Campoamor","dates":["2026-11-15"],"times":[["18000",67800],["17000",68400]]},
+          {"id":"M3","line":"C4a","dest":"Madrid-Chamartín-Clara Campoamor","dates":["2026-11-15"],"times":[["18002",66000],["18000",67500],["17000",68100]]},
+          {"id":"MX","line":"C1","dest":"Parla","dates":["2026-11-15"],"times":[["X1",68200],["18002",69000]]}]}

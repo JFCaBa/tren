@@ -9,17 +9,21 @@ double haversineMeters(double lat1, double lon1, double lat2, double lon2) {
   return 2 * 6371000 * math.asin(math.sqrt(h.clamp(0, 1)));
 }
 
-/// Closest stop in a straight line. [stops] must not be empty.
-(Stop, double) nearestStop(List<Stop> stops, double lat, double lon) {
-  if (stops.isEmpty) throw ArgumentError.value(stops, 'stops', 'must not be empty');
-  Stop? best;
+/// Closest item in a straight line. [items] must not be empty.
+(T, double) nearest<T>(List<T> items, double lat, double lon,
+    {required double Function(T) latOf, required double Function(T) lonOf}) {
+  if (items.isEmpty) throw ArgumentError.value(items, 'items', 'must not be empty');
+  T? best;
   var bestM = double.infinity;
-  for (final s in stops) {
-    final m = haversineMeters(lat, lon, s.lat, s.lon);
+  for (final s in items) {
+    final m = haversineMeters(lat, lon, latOf(s), lonOf(s));
     if (m < bestM) {
       best = s;
       bestM = m;
     }
   }
-  return (best!, bestM);
+  return (best as T, bestM);
 }
+
+(Stop, double) nearestStop(List<Stop> stops, double lat, double lon) =>
+    nearest(stops, lat, lon, latOf: (s) => s.lat, lonOf: (s) => s.lon);

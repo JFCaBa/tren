@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:proximotren/app_controller.dart';
-import 'package:proximotren/data/feed_repository.dart';
 import 'package:proximotren/data/realtime.dart';
 import 'package:proximotren/ui/home_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,36 +25,83 @@ void main() {
   });
   tearDown(() => dir.deleteSync(recursive: true));
 
+  Future<AppController> make() async => AppController(
+        server.client,
+        dir,
+        RealtimeClient(server.client),
+        location,
+        await SharedPreferences.getInstance(),
+        clock: () => tz.TZDateTime(tz.getLocation('Europe/Madrid'), 2026, 11, 15, 18, 0),
+        periodic: TimerLog().create,
+      );
+
   Future<AppController> started(WidgetTester tester) async {
-    final c = AppController(
-      FeedRepository(server.client, dir),
-      RealtimeClient(server.client),
-      location,
-      await SharedPreferences.getInstance(),
-      clock: () => tz.TZDateTime(tz.getLocation('Europe/Madrid'), 2026, 11, 15, 18, 0),
-      periodic: TimerLog().create,
-    );
+    final c = await make();
     await tester.runAsync(c.start);
     return c;
   }
 
-  testWidgets('renders both sections and Datos: Renfe', (tester) async {
+  Future<void> show(WidgetTester tester, AppController c) =>
+      tester.pumpWidget(MaterialApp(home: HomeScreen(controller: c)));
+
+  testWidgets('renders station, filter chips, departures and Datos: Renfe', (tester) async {
     final c = await started(tester);
-    await tester.pumpWidget(MaterialApp(home: HomeScreen(controller: c)));
+    await show(tester, c);
     expect(find.text('Silla'), findsOneWidget);
-    expect(find.text('→ València Nord'), findsWidgets); // section title + rows ending there
-    expect(find.text('→ Gandia / Moixent'), findsOneWidget);
+    expect(find.widgetWithText(FilterChip, 'Todos'), findsOneWidget);
+    expect(find.widgetWithText(FilterChip, 'Gandia'), findsOneWidget);
+    expect(find.widgetWithText(FilterChip, 'València Nord'), findsOneWidget);
     expect(find.text('1:04 h'), findsOneWidget); // T1 at Silla 18:55 + 9 min RT delay
     expect(find.text('(+9)'), findsOneWidget);
     expect(find.textContaining('Datos: Renfe'), findsOneWidget);
     expect(find.textContaining(RegExp(r'actualizado a las \d\d:\d\d')), findsOneWidget);
-    expect(find.text('C1'), findsWidgets);
-    expect(find.textContaining('→ Gandia'), findsWidgets);
+  });
+
+  testWidgets('tapping a chip filters the list', (tester) async {
+    final c = await started(tester);
+    await show(tester, c);
+    expect(find.text('→ València Nord'), findsWidgets);
+    await tester.tap(find.widgetWithText(FilterChip, 'Gandia'));
+    await tester.pumpAndSettle();
+    expect(c.filters, {'Gandia'});
+    expect(find.text('→ València Nord'), findsNothing);
+    expect(find.text('→ Gandia'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilterChip, 'Todos'));
+    await tester.pumpAndSettle();
+    expect(c.filters, isEmpty);
+    expect(find.text('→ València Nord'), findsWidgets);
+  });
+
+  testWidgets('line badge uses the feed color', (tester) async {
+    final c = await started(tester);
+    await show(tester, c);
+    final badge = tester.widget<Container>(
+        find.ancestor(of: find.text('C2').first, matching: find.byType(Container)).first);
+    expect((badge.decoration! as BoxDecoration).color, const Color(0xFFF79529));
+  });
+
+  testWidgets('tapping a train expands its stops, one at a time', (tester) async {
+    final c = await started(tester);
+    await show(tester, c);
+    expect(find.byKey(const ValueKey('stops-T1')), findsNothing);
+    await tester.tap(find.text('→ Gandia'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('stops-T1')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('stops-T1')), matching: find.text('Gandia')), findsOneWidget);
+
+    await tester.tap(find.text('→ València Nord').first);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('stops-T1')), findsNothing);
+    expect(find.byKey(const ValueKey('stops-T2')), findsOneWidget);
+
+    await tester.tap(find.text('→ València Nord').first);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('stops-T2')), findsNothing);
   });
 
   testWidgets('long destinations are shortened and wrap to two lines', (tester) async {
     final c = await started(tester);
-    await tester.pumpWidget(MaterialApp(home: HomeScreen(controller: c)));
+    await show(tester, c);
     expect(find.textContaining('Estació del Nord'), findsNothing);
     final rows = tester.widgetList<Text>(find.textContaining('→ ')).where((t) => t.maxLines != null);
     expect(rows, isNotEmpty);
@@ -64,41 +110,26 @@ void main() {
     }
   });
 
-  testWidgets('tapping a train expands its stops, one at a time', (tester) async {
-    final c = await started(tester);
-    await tester.pumpWidget(MaterialApp(home: HomeScreen(controller: c)));
-    // Silla: T1 out (→ Gandia) and T2 in (→ València Nord)
-    expect(find.byKey(const ValueKey('stops-T1')), findsNothing);
-    await tester.tap(find.text('→ Gandia'));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('stops-T1')), findsOneWidget);
-    expect(find.descendant(of: find.byKey(const ValueKey('stops-T1')), matching: find.text('Gandia')), findsOneWidget);
-
-    await tester.tap(find.text('→ València Nord').last);
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('stops-T1')), findsNothing);
-    expect(find.byKey(const ValueKey('stops-T2')), findsOneWidget);
-
-    await tester.tap(find.text('→ València Nord').last);
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('stops-T2')), findsNothing);
-  });
-
-  testWidgets('no realtime banner before the first poll answers', (tester) async {
-    server.rtHangs = true;
-    final c = AppController(
-      FeedRepository(server.client, dir),
-      RealtimeClient(server.client),
-      location,
-      await SharedPreferences.getInstance(),
-      clock: () => tz.TZDateTime(tz.getLocation('Europe/Madrid'), 2026, 11, 15, 18, 0),
-      periodic: TimerLog().create,
-    );
+  testWidgets('shows searching while location is pending', (tester) async {
+    location.immediate = null; // never answers during the test
+    final c = await make();
     await tester.runAsync(() async {
       c.start();
       await Future<void>.delayed(const Duration(milliseconds: 100));
     });
-    await tester.pumpWidget(MaterialApp(home: HomeScreen(controller: c)));
+    await show(tester, c);
+    expect(find.text('Buscando tu estación…'), findsOneWidget);
+    expect(find.text('Elegir estación'), findsNothing);
+  });
+
+  testWidgets('no realtime banner before the first poll answers', (tester) async {
+    server.rtHangs = true;
+    final c = await make();
+    await tester.runAsync(() async {
+      c.start();
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+    });
+    await show(tester, c);
     expect(find.text('Silla'), findsOneWidget);
     expect(find.textContaining('Sin tiempo real'), findsNothing);
   });
@@ -106,59 +137,44 @@ void main() {
   testWidgets('realtime banner after a failed poll', (tester) async {
     server.rtFails = true;
     final c = await started(tester);
-    await tester.pumpWidget(MaterialApp(home: HomeScreen(controller: c)));
+    await show(tester, c);
     expect(find.textContaining('Sin tiempo real'), findsOneWidget);
+  });
+
+  testWidgets('incomplete banner when a nucleo of the station is missing', (tester) async {
+    server.failing.add('feeds/10.json');
+    location.immediate = nearShared;
+    final c = await started(tester);
+    await show(tester, c);
+    expect(find.textContaining('Horario incompleto: falta Madrid'), findsOneWidget);
   });
 
   testWidgets('shows retry on first-launch offline', (tester) async {
     server.feedFails = true;
     final c = await started(tester);
-    await tester.pumpWidget(MaterialApp(home: HomeScreen(controller: c)));
+    await show(tester, c);
     expect(find.text('Reintentar'), findsOneWidget);
     expect(find.textContaining('No se ha podido descargar'), findsOneWidget);
   });
 
-  testWidgets('shows searching while location is pending', (tester) async {
-    location.immediate = null; // never answers during the test
-    final c = AppController(
-      FeedRepository(server.client, dir),
-      RealtimeClient(server.client),
-      location,
-      await SharedPreferences.getInstance(),
-      clock: () => tz.TZDateTime(tz.getLocation('Europe/Madrid'), 2026, 11, 15, 18, 0),
-      periodic: TimerLog().create,
-    );
-    await tester.runAsync(() async {
-      c.start();
-      await Future<void>.delayed(const Duration(milliseconds: 100));
-    });
-    await tester.pumpWidget(MaterialApp(home: HomeScreen(controller: c)));
-    expect(find.text('Buscando tu estación…'), findsOneWidget);
-    expect(find.text('Elegir estación'), findsNothing);
-  });
-
-  testWidgets('asks to pick a station without location', (tester) async {
+  testWidgets('station picker groups by nucleo and changes station', (tester) async {
     location.immediate = null;
-    final c = AppController(
-      FeedRepository(server.client, dir),
-      RealtimeClient(server.client),
-      _NullLocation(),
-      await SharedPreferences.getInstance(),
-      clock: () => tz.TZDateTime(tz.getLocation('Europe/Madrid'), 2026, 11, 15, 18, 0),
-      periodic: TimerLog().create,
-    );
-    await tester.runAsync(c.start);
-    await tester.pumpWidget(MaterialApp(home: HomeScreen(controller: c)));
+    final c = await make();
+    await tester.runAsync(() async {
+      final s = c.start();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      location.answer(null);
+      await s;
+    });
+    await show(tester, c);
     expect(find.text('Elegir estación'), findsOneWidget);
     await tester.tap(find.text('Elegir estación'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Gandia').last);
-    await tester.pumpAndSettle();
-    expect(c.station!.id, '69110');
+    expect(find.text('Madrid'), findsWidgets);
+    expect(find.text('Valencia'), findsWidgets);
+    await tester.tap(find.text('Parla')); // Madrid group comes first (alphabetical, no current)
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 150)));
+    await tester.pump();
+    expect(c.station!.id, '18002');
   });
-}
-
-class _NullLocation extends FakeLocation {
-  @override
-  Future<(double, double)?> current({bool requestPermission = false}) async => null;
 }
