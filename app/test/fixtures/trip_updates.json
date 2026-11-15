@@ -1,0 +1,7 @@
+{"header":{"gtfsRealtimeVersion":"2.0","timestamp":"1794768264"},
+ "entity":[
+  {"id":"A","tripUpdate":{"trip":{"tripId":"T1","scheduleRelationship":"SCHEDULED"},"stopTimeUpdate":[{"arrival":{"delay":540,"time":"1794768197"},"stopId":"64200"}],"delay":540}},
+  {"id":"B","tripUpdate":{"trip":{"tripId":"T2","scheduleRelationship":"SCHEDULED"},"stopTimeUpdate":[{"arrival":{"delay":-180},"stopId":"64200"}],"delay":"-180"}},
+  {"id":"C","tripUpdate":{"trip":{"tripId":"T3","scheduleRelationship":"SCHEDULED"},"stopTimeUpdate":[{"arrival":{"delay":60},"stopId":"64200"}]}},
+  {"id":"D","tripUpdate":{"trip":{"tripId":"T4","scheduleRelationship":"CANCELED"}}}
+ ]}
