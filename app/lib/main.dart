@@ -58,7 +58,7 @@ class _ProximoTrenAppState extends State<ProximoTrenApp> with WidgetsBindingObse
   Widget build(BuildContext context) {
     const seed = Color(0xFF7AB3DE);
     return MaterialApp(
-      title: 'Próximo Tren',
+      title: 'Andén',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.system,
       theme: ThemeData(colorSchemeSeed: seed, brightness: Brightness.light),
