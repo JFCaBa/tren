@@ -1,16 +1,25 @@
 """Build a compact feed.json with Valencia Cercanías C1/C2 schedules from Renfe's GTFS."""
 
+import argparse
 import csv
+import json
 import math
 import sys
+import tempfile
+import time
+import urllib.request
+import zipfile
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 LINES = ("C1", "C2")
 VALENCIA_PREFIX = "40T"
 VALENCIA_NORD = "65000"
 MAX_SECS = 48 * 3600
+GTFS_URL = "https://ssl.renfe.com/ftransit/Fichero_CER_FOMENTO/fomento_transit.zip"
+MADRID = ZoneInfo("Europe/Madrid")
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
@@ -153,3 +162,71 @@ def build_feed(gtfs_dir: Path, today: date, days: int = 7) -> dict:
         "stops": out_stops,
         "trips": sorted(out_trips, key=lambda t: t["id"]),
     }
+
+
+def validate_feed(feed: dict, today: date, min_stops: int = 20) -> list:
+    """Return a list of problems; an empty list means the feed can be published."""
+    errors = []
+    lines = {t["line"] for t in feed["trips"]}
+    for line in LINES:
+        if line not in lines:
+            errors.append(f"no trips for line {line}")
+    if len(feed["stops"]) < min_stops:
+        errors.append(f"only {len(feed['stops'])} stops (< {min_stops})")
+    for line in LINES:
+        dates = {d for t in feed["trips"] if t["line"] == line for d in t["dates"]}
+        for d in (today, today + timedelta(days=1)):
+            if d.isoformat() not in dates:
+                errors.append(f"no {line} trips on {d.isoformat()}")
+    return errors
+
+
+def _download(dest: Path, attempts: int = 3) -> None:
+    req = urllib.request.Request(GTFS_URL, headers={"User-Agent": "proximotren-pipeline"})
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp, open(dest, "wb") as f:
+                while chunk := resp.read(1 << 20):
+                    f.write(chunk)
+            return
+        except OSError as e:  # URLError/HTTPError/timeouts are OSError subclasses
+            print(f"download attempt {attempt} failed: {e}", file=sys.stderr)
+            if attempt == attempts:
+                raise
+            time.sleep(30 * attempt)
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--out", required=True, type=Path, help="output directory for feed.json")
+    parser.add_argument("--zip", type=Path, help="use a local GTFS zip instead of downloading")
+    parser.add_argument("--date", type=date.fromisoformat, help="service date YYYY-MM-DD (default: today in Madrid)")
+    parser.add_argument("--min-stops", type=int, default=20)
+    args = parser.parse_args(argv)
+
+    today = args.date or datetime.now(MADRID).date()
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        zpath = args.zip
+        if zpath is None:
+            zpath = tmp / "gtfs.zip"
+            _download(zpath)
+        with zipfile.ZipFile(zpath) as z:
+            z.extractall(tmp / "gtfs")
+        feed = build_feed(tmp / "gtfs", today)
+
+    errors = validate_feed(feed, today, min_stops=args.min_stops)
+    if errors:
+        for e in errors:
+            print(f"error: {e}", file=sys.stderr)
+        return 1
+    args.out.mkdir(parents=True, exist_ok=True)
+    tmp_path = args.out / "feed.json.tmp"
+    tmp_path.write_text(json.dumps(feed, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    tmp_path.replace(args.out / "feed.json")
+    print(f"wrote {args.out / 'feed.json'}: {len(feed['stops'])} stops, {len(feed['trips'])} trips")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
