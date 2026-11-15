@@ -21,7 +21,7 @@ def zip_fixture(name, dest):
             z.write(f, f.name)
 
 
-def run(tmp, fixture, *extra, date_="2026-11-15", prev=None):
+def run(tmp, fixture, *extra, date_="2026-11-15", prev=None, base=None):
     tmp = Path(tmp)
     zip_fixture(fixture, tmp / "gtfs.zip")
     prev = prev or (tmp / "noprev")
@@ -29,7 +29,7 @@ def run(tmp, fixture, *extra, date_="2026-11-15", prev=None):
     out = tmp / "out"
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--out", str(out), "--zip", str(tmp / "gtfs.zip"), "--date", date_,
-         "--previous-base", prev.as_uri(), *extra],
+         "--previous-base", base or prev.as_uri(), *extra],
         capture_output=True, text=True)
     return proc, out
 
@@ -124,6 +124,29 @@ class CliNucleosTest(unittest.TestCase):
             proc, out = run(tmp, "multi", date_="2030-01-01", prev=prev)
             self.assertEqual(1, proc.returncode, proc.stderr)
             self.assertFalse(out.exists() and any(out.iterdir()))
+
+    def test_previous_unreachable_fails_run(self):
+        # Connection refused != "no previous": publishing could drop a whole city from the index.
+        with tempfile.TemporaryDirectory() as tmp:
+            proc, out = run(tmp, "multi", base="http://127.0.0.1:9")
+            self.assertEqual(1, proc.returncode, proc.stderr)
+            self.assertIn("previous publication unreachable", proc.stderr)
+            self.assertFalse(out.exists() and any(out.iterdir()))
+
+    def test_corrupt_previous_index_fails_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prev = Path(tmp) / "prev"
+            prev.mkdir()
+            (prev / "index.json").write_text('{"nucleos": [')
+            proc, out = run(tmp, "multi", prev=prev)
+            self.assertEqual(1, proc.returncode, proc.stderr)
+            self.assertFalse(out.exists() and any(out.iterdir()))
+
+    def test_invalid_base_fails_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proc, out = run(tmp, "multi", base="notaurl")
+            self.assertEqual(1, proc.returncode, proc.stderr)
+            self.assertIn("previous publication unreachable", proc.stderr)
 
     def test_vanished_nucleo_republishes_previous(self):
         with tempfile.TemporaryDirectory() as tmp:

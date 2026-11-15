@@ -7,6 +7,7 @@ import math
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.request
 import zipfile
 from collections import defaultdict
@@ -357,14 +358,34 @@ def validate_nucleo(feed: dict, today: date, previous) -> list:
     return errors
 
 
-def _fetch_previous(base: str, path: str):
-    """Raw bytes of a previously published file, or None (missing, offline, 404...)."""
-    try:
-        req = urllib.request.Request(f"{base}/{path}", headers={"User-Agent": "proximotren-pipeline"})
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            return resp.read()
-    except (OSError, ValueError):
-        return None
+class PreviousUnreachable(Exception):
+    """The previous publication could not be read (not the same as "it does not exist")."""
+
+
+def _fetch_previous(base: str, path: str, attempts: int = 2):
+    """Raw bytes of a previously published file, None if it does not exist (404 / missing file).
+
+    Any other failure raises PreviousUnreachable: treating an outage as "no previous" could drop
+    a whole núcleo from the index or skip the shrink check.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            req = urllib.request.Request(f"{base}/{path}", headers={"User-Agent": "proximotren-pipeline"})
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None
+            err = e
+        except urllib.error.URLError as e:
+            if isinstance(e.reason, FileNotFoundError):
+                return None
+            err = e
+        except (OSError, ValueError) as e:  # ValueError: malformed base URL
+            err = e
+        if attempt < attempts:
+            time.sleep(3)
+    raise PreviousUnreachable(f"{path}: {err}")
 
 
 def _is_feed_v2(obj) -> bool:
@@ -416,59 +437,72 @@ def main(argv=None) -> int:
         except (KeyError, ValueError) as e:  # e.g. Valencia Nord missing: v1 is legacy, never fatal
             v1, v1_errors = None, [f"build failed: {e!r}"]
 
-    prev_ids = set()
-    raw_index = _fetch_previous(base, "index.json")
-    if raw_index:
-        try:
-            prev_ids = {n["id"] for n in json.loads(raw_index)["nucleos"]}
-        except (ValueError, KeyError, TypeError):
-            print("warning: previous index.json unreadable", file=sys.stderr)
-
-    published = {}  # nucleo -> (raw bytes, parsed feed)
-    fresh = 0
-    for nucleo in sorted(set(feeds) | prev_ids):
-        raw_prev = _fetch_previous(base, f"feeds/{nucleo}.json")
-        prev = None
-        if raw_prev:
+    try:
+        prev_ids = set()
+        raw_index = _fetch_previous(base, "index.json")
+        if raw_index:
             try:
-                prev = json.loads(raw_prev)
-            except ValueError:
-                prev = None
-            if not _is_feed_v2(prev):
-                print(f"warning: previous feeds/{nucleo}.json is not a v2 feed; ignored", file=sys.stderr)
-                prev = None
-        new = feeds.get(nucleo)
-        errors = validate_nucleo(new, today, prev) if new else ["missing from GTFS"]
-        if not errors:
-            published[nucleo] = (_dump(new), new)
-            fresh += 1
-        elif prev and prev["valid_to"] >= today.isoformat():
-            print(f"warning: nucleo {nucleo} kept previous: {'; '.join(errors)}", file=sys.stderr)
-            published[nucleo] = (raw_prev, prev)
-        else:
-            print(f"warning: nucleo {nucleo} omitted (no usable previous): {'; '.join(errors)}", file=sys.stderr)
+                prev_ids = {n["id"] for n in json.loads(raw_index)["nucleos"]}
+            except (ValueError, KeyError, TypeError) as e:
+                # Can't know which núcleos existed: same risk as an outage.
+                raise PreviousUnreachable(f"index.json unreadable: {e!r}")
+
+        published = {}  # nucleo -> (raw bytes, parsed feed)
+        fresh = 0
+        for nucleo in sorted(set(feeds) | prev_ids):
+            raw_prev = _fetch_previous(base, f"feeds/{nucleo}.json")
+            prev = None
+            if raw_prev:
+                try:
+                    prev = json.loads(raw_prev)
+                except ValueError:
+                    prev = None
+                if not _is_feed_v2(prev):
+                    print(f"warning: previous feeds/{nucleo}.json is not a v2 feed; ignored", file=sys.stderr)
+                    prev = None
+            new = feeds.get(nucleo)
+            errors = validate_nucleo(new, today, prev) if new else ["missing from GTFS"]
+            if not errors:
+                published[nucleo] = (_dump(new), new)
+                fresh += 1
+            elif prev and prev["valid_to"] >= today.isoformat():
+                print(f"warning: nucleo {nucleo} kept previous: {'; '.join(errors)}", file=sys.stderr)
+                published[nucleo] = (raw_prev, prev)
+            else:
+                print(f"warning: nucleo {nucleo} omitted (no usable previous): {'; '.join(errors)}", file=sys.stderr)
+    except PreviousUnreachable as e:
+        print(f"error: previous publication unreachable ({e}); not publishing", file=sys.stderr)
+        return 1
 
     if fresh == 0:
         # Nothing new validated: fail loudly so CI alerts; Pages keeps serving the last deploy.
         print("error: no nucleo passed validation", file=sys.stderr)
         return 1
 
+    # Decide the legacy v1 before writing anything, so a failure never leaves out/ half written.
+    if v1_errors is None:
+        v1_errors = validate_feed(v1, today, min_stops=args.min_stops)
+    v1_raw = None
+    if not v1_errors:
+        v1_raw = _dump(v1)
+    else:
+        try:
+            v1_raw = _fetch_previous(base, "feed.json")
+        except PreviousUnreachable as e:
+            print(f"error: previous publication unreachable ({e}); not publishing", file=sys.stderr)
+            return 1
+        if v1_raw:
+            print(f"warning: feed.json kept previous: {'; '.join(v1_errors)}", file=sys.stderr)
+        else:
+            print(f"warning: feed.json omitted (no previous): {'; '.join(v1_errors)}", file=sys.stderr)
+
     for nucleo, (raw, _) in published.items():
         _write_atomic(args.out / "feeds" / f"{nucleo}.json", raw)
     index = build_index({n: f for n, (_, f) in published.items()})
     _write_atomic(args.out / "index.json", _dump(index))
 
-    if v1_errors is None:
-        v1_errors = validate_feed(v1, today, min_stops=args.min_stops)
-    if not v1_errors:
-        _write_atomic(args.out / "feed.json", _dump(v1))
-    else:
-        raw_v1 = _fetch_previous(base, "feed.json")
-        if raw_v1:
-            print(f"warning: feed.json kept previous: {'; '.join(v1_errors)}", file=sys.stderr)
-            _write_atomic(args.out / "feed.json", raw_v1)
-        else:
-            print(f"warning: feed.json omitted (no previous): {'; '.join(v1_errors)}", file=sys.stderr)
+    if v1_raw:
+        _write_atomic(args.out / "feed.json", v1_raw)
 
     print(f"wrote {len(published)} nucleos, {len(index['stops'])} stations to {args.out}")
     return 0

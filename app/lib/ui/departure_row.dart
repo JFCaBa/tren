@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:material_ui/material_ui.dart';
 
 import '../domain/board.dart';
@@ -8,6 +10,17 @@ String formatWait(int minutes) {
   if (minutes <= 0) return 'ahora';
   if (minutes < 60) return '$minutes min';
   return '${minutes ~/ 60}:${(minutes % 60).toString().padLeft(2, '0')} h';
+}
+
+/// Black or white, whichever reads better on [argb] (WCAG relative luminance).
+int lineTextColor(int argb) {
+  double ch(int shift) {
+    final c = ((argb >> shift) & 0xFF) / 255;
+    return c <= 0.03928 ? c / 12.92 : math.pow((c + 0.055) / 1.055, 2.4).toDouble();
+  }
+
+  final l = 0.2126 * ch(16) + 0.7152 * ch(8) + 0.0722 * ch(0);
+  return l > 0.179 ? 0xFF000000 : 0xFFFFFFFF; // crossover where black beats white on WCAG contrast
 }
 
 String hhmm(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
@@ -23,7 +36,7 @@ class LineBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(color: Color(color), borderRadius: BorderRadius.circular(6)),
-        child: Text(line, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        child: Text(line, style: TextStyle(color: Color(lineTextColor(color)), fontWeight: FontWeight.w700)),
       );
 }
 
