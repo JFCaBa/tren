@@ -20,3 +20,28 @@ Hoy cubrimos los 15 núcleos de Renfe Cercanías, que son todos los del GTFS ofi
 
 Primer paso cuando se retome: verificar qué datos (horarios y tiempo real) publica
 realmente cada operador.
+
+## Otros países (análisis rápido, 16-11-2026)
+
+### Reino Unido — viable, el más interesante como producto
+- Datos: Darwin (National Rail) vía Rail Data Marketplace, gratuito con registro.
+  Salidas en tiempo real por estación con retrasos, cancelaciones y **andén incluido**.
+  Una sola fuente para ~2.500 estaciones.
+- Arquitectura distinta: Darwin necesita clave → hace falta un pequeño proxy
+  (p. ej. Cloudflare Worker); no se puede meter la clave en la app. A cambio sobra
+  casi todo el procesado de horarios (se piden las salidas de la estación cercana).
+- Competencia muy fuerte (app de National Rail, Trainline, Realtime Trains...).
+  Diferenciarse por sencillez. App en inglés.
+- Pendiente: condiciones de uso de Darwin (límites, atribución, uso comercial).
+
+### Portugal — técnicamente fácil, poco valor sin tiempo real
+- CP publica GTFS oficial (MobilityData mdb-2057): el pipeline actual sirve casi entero.
+- Sin tiempo real público: CP lo tiene en su web (2024) pero sin API abierta; los
+  clientes no oficiales piden permiso a CP para uso en producción.
+- Mercado pequeño: urbanos de Lisboa (Sintra, Cascais, Azambuja, Sado) y Oporto
+  (Braga, Guimarães, Aveiro). Fertagus es otro operador con datos propios.
+- Solo merece la pena si CP da acceso al tiempo real: escribirles para preguntarlo.
+- Pendiente: licencia del GTFS de CP.
+
+Fuentes: https://nre.co.uk/developers/ · https://mobilitydatabase.org/feeds/gtfs/mdb-2057 ·
+https://cp.pt/institucional/en/press/press-releases/info-tempo-real
