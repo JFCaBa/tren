@@ -1,0 +1,75 @@
+name: platforms
+
+# Every 10 minutes, record which platform (vía) trains use, from Renfe's live vehicle positions.
+# The observations live in platforms.json on the orphan branch `platform-data`, kept as a single
+# amended commit so main's history stays clean; the nightly feed build reads it from there.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: platforms
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: src
+
+      - name: Check out the data branch
+        working-directory: src
+        run: |
+          # Exit code 2 means "no such branch"; anything else (network, auth) must not be taken
+          # for it, or a fresh empty state would replace the real one.
+          set +e
+          remote=$(git ls-remote --exit-code origin refs/heads/platform-data)
+          code=$?
+          set -e
+          if [ "$code" = 0 ]; then
+            sha=${remote%%[[:space:]]*}
+            git fetch --depth=1 origin platform-data
+            git worktree add --detach ../data FETCH_HEAD
+          elif [ "$code" = 2 ]; then
+            sha=""
+            git worktree add --orphan -b platform-data ../data
+          else
+            echo "::error::git ls-remote failed with $code"
+            exit 1
+          fi
+          echo "EXPECTED_SHA=$sha" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      # A non-zero exit (unreadable state, or a result that would lose half the keys) fails the
+      # job before anything is committed, and GitHub emails the owner.
+      - name: Collect
+        run: python src/pipeline/collect_platforms.py --state data/platforms.json
+
+      - name: Save
+        working-directory: data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add platforms.json
+          [ -f platforms-prev.json ] && git add platforms-prev.json
+          if git diff --cached --quiet; then
+            echo "no changes"
+            exit 0
+          fi
+          if git rev-parse -q --verify HEAD >/dev/null; then
+            git commit -q --amend -m "platform observations"
+          else
+            git commit -q -m "platform observations"
+          fi
+          # Only replace the commit this run started from (empty lease = branch must not exist yet).
+          git push -q --force-with-lease=refs/heads/platform-data:"$EXPECTED_SHA" origin HEAD:refs/heads/platform-data

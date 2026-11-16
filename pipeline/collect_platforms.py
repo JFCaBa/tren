@@ -93,3 +93,85 @@ def merge(state: dict, obs: list, today: str) -> dict:
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "obs": dict(sorted(kept.items())),
     }
+
+
+SOURCE = "https://gtfsrt.renfe.com/vehicle_positions.json"
+
+
+def _local_day(updated: str) -> str:
+    """Madrid date of an ISO UTC timestamp ("" if unparseable, so it sorts first)."""
+    from zoneinfo import ZoneInfo
+
+    try:
+        t = datetime.strptime(updated, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return ""
+    return t.astimezone(ZoneInfo("Europe/Madrid")).date().isoformat()
+
+
+def _madrid_today() -> str:
+    from zoneinfo import ZoneInfo
+
+    return datetime.now(ZoneInfo("Europe/Madrid")).date().isoformat()
+
+
+def main(argv=None) -> int:
+    """One collection pass. 0 = done or nothing to do; 1 = refused to touch a suspicious state."""
+    import argparse
+    import json
+    import os
+    import sys
+    import urllib.request
+    from pathlib import Path
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--state", required=True, type=Path)
+    parser.add_argument("--url", default=SOURCE)
+    parser.add_argument("--today", help="YYYY-MM-DD (default: today in Madrid)")
+    args = parser.parse_args(argv)
+    today = args.today or _madrid_today()
+
+    previous = None
+    if args.state.exists():
+        try:
+            previous = json.loads(args.state.read_text(encoding="utf-8"))
+        except ValueError:
+            previous = None
+        if not valid_state(previous):
+            print(f"error: {args.state} is unreadable or invalid; not overwriting it", file=sys.stderr)
+            return 1
+
+    try:
+        req = urllib.request.Request(args.url, headers={"User-Agent": "tren-platforms/1.0"})
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            vp = json.loads(resp.read().decode("utf-8"))
+    except Exception as e:  # network, HTTP or JSON: skip this pass, the next one will retry
+        print(f"warning: could not fetch {args.url}: {e}", file=sys.stderr)
+        return 0
+
+    state = merge(previous or {"version": 1, "updated": "", "obs": {}},
+                  observations(vp, datetime.now(timezone.utc)), today)
+    if previous and state["obs"] == previous["obs"]:
+        print("no changes")
+        return 0
+    stale = _local_day(previous.get("updated", "")) < (date.fromisoformat(today) - timedelta(days=2)).isoformat() \
+        if previous else True
+    if previous and not stale and len(state["obs"]) < len(previous["obs"]) / 2:
+        print(f"error: keys would drop from {len(previous['obs'])} to {len(state['obs'])}; not writing",
+              file=sys.stderr)
+        return 1
+
+    def write(path: Path, text: str) -> None:
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, path)
+
+    if previous and _local_day(previous.get("updated", "")) < today:
+        write(args.state.with_name("platforms-prev.json"), args.state.read_text(encoding="utf-8"))
+    write(args.state, json.dumps(state, ensure_ascii=False, separators=(",", ":")))
+    print(f"{len(state['obs'])} keys; {sum(len(v) for v in state['obs'].values())} observations")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -98,5 +98,106 @@ class MergeTest(unittest.TestCase):
         self.assertTrue(valid_state({"version": 1, "updated": "x", "obs": {"k": [["2", "2026-11-16"]]}}))
 
 
+class MainTest(unittest.TestCase):
+    """main() against a local HTTP server serving the fixture with a fresh header."""
+
+    @classmethod
+    def setUpClass(cls):
+        import http.server
+        import threading
+        import time
+
+        body = json.loads(json.dumps(VP))
+        now = int(time.time())
+        body["header"]["timestamp"] = str(now)
+        for e in body["entity"]:
+            e["vehicle"]["timestamp"] = str(now)
+        payload = json.dumps(body).encode()
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(payload)
+
+            def log_message(self, *a):
+                pass
+
+        cls.server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+        cls.url = f"http://127.0.0.1:{cls.server.server_port}/vp.json"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+
+    def setUp(self):
+        import tempfile
+
+        self.tmp = Path(tempfile.mkdtemp())
+        self.state = self.tmp / "platforms.json"
+
+    def run_main(self, url=None, today="2026-11-16"):
+        from collect_platforms import main
+
+        return main(["--state", str(self.state), "--url", url or self.url, "--today", today])
+
+    def test_main_writes_state(self):
+        self.assertEqual(self.run_main(), 0)
+        d = json.loads(self.state.read_text())
+        self.assertTrue(valid_state(d))
+        self.assertEqual(set(d["obs"]), {"51200|23525", "18000|35905"})
+
+    def test_main_download_failure_keeps_state(self):
+        self.state.write_text('{"version": 1, "updated": "x", "obs": {}}')
+        self.assertEqual(self.run_main(url="http://127.0.0.1:9/none"), 0)
+        self.assertEqual(self.state.read_text(), '{"version": 1, "updated": "x", "obs": {}}')
+
+    def test_main_corrupt_state_aborts(self):
+        self.state.write_text("{")
+        self.assertEqual(self.run_main(), 1)
+        self.assertEqual(self.state.read_text(), "{")
+
+    def test_main_refuses_to_shrink_by_half(self):
+        obs = {f"s{i}|1234{i}": [["1", "2026-11-15"]] for i in range(10)}
+        # all of them older than 45 days -> pruned -> the result would lose them all
+        old = {k: [["1", "2026-09-01"]] for k in obs}
+        prev = json.dumps({"version": 1, "updated": "2026-11-15T10:00:00Z", "obs": old})
+        self.state.write_text(prev)
+        self.assertEqual(self.run_main(), 1)
+        self.assertEqual(self.state.read_text(), prev)
+
+    def test_main_shrink_allowed_after_long_stop(self):
+        old = {f"s{i}|1234{i}": [["1", "2026-09-01"]] for i in range(10)}
+        self.state.write_text(json.dumps({"version": 1, "updated": "2026-10-01T10:00:00Z", "obs": old}))
+        self.assertEqual(self.run_main(), 0)
+        self.assertEqual(set(json.loads(self.state.read_text())["obs"]), {"51200|23525", "18000|35905"})
+
+    def test_main_no_write_without_changes(self):
+        self.assertEqual(self.run_main(), 0)
+        d = json.loads(self.state.read_text())
+        d["updated"] = "2026-11-16T06:00:00Z"  # sentinel: a rewrite would replace it
+        self.state.write_text(json.dumps(d))
+        first = self.state.read_text()
+        self.assertEqual(self.run_main(), 0)
+        self.assertEqual(self.state.read_text(), first)
+
+    def test_main_backup_uses_madrid_day(self):
+        # 23:30 UTC on the 15th is 00:30 on the 16th in Madrid: same local day, no rotation.
+        prev = json.dumps({"version": 1, "updated": "2026-11-15T23:30:00Z", "obs": {"a|1": [["2", "2026-11-16"]]}})
+        self.state.write_text(prev)
+        self.assertEqual(self.run_main(), 0)
+        self.assertFalse((self.tmp / "platforms-prev.json").exists())
+
+    def test_main_daily_backup(self):
+        prev = json.dumps({"version": 1, "updated": "2026-11-15T20:50:00Z", "obs": {"a|1": [["2", "2026-11-15"]]}})
+        self.state.write_text(prev)
+        self.assertEqual(self.run_main(), 0)
+        self.assertEqual((self.tmp / "platforms-prev.json").read_text(), prev)
+        # a second run the same day keeps yesterday's backup
+        self.assertEqual(self.run_main(), 0)
+        self.assertEqual((self.tmp / "platforms-prev.json").read_text(), prev)
+
+
 if __name__ == "__main__":
     unittest.main()
