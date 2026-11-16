@@ -16,6 +16,8 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from collect_platforms import KEEP_DAYS, train_number, valid_state
+
 LINES = ("C1", "C2")
 VALENCIA_PREFIX = "40T"
 VALENCIA_NORD = "65000"
@@ -313,6 +315,82 @@ def build_index(feeds: dict) -> dict:
     }
 
 
+USUAL_MIN_OBS = 2  # observations, on at least this many distinct days
+USUAL_MIN_SHARE = 0.6
+
+
+def usual(obs: list):
+    """The usual platform in [[platform, date], ...], or None if the evidence is too thin."""
+    if len(obs) < USUAL_MIN_OBS or len({d for _, d in obs}) < USUAL_MIN_OBS:
+        return None
+    counts = {}
+    for platform, _ in obs:
+        counts[platform] = counts.get(platform, 0) + 1
+    best, n = max(sorted(counts.items()), key=lambda kv: kv[1])
+    return best if n / len(obs) >= USUAL_MIN_SHARE else None
+
+
+def load_platforms(src, today: date):
+    """platforms.json (path or URL) from the collector, without expired keys; None if unusable."""
+    if not src:
+        return None
+    try:
+        if "://" in src:
+            with urllib.request.urlopen(src, timeout=30) as resp:
+                obj = json.loads(resp.read().decode("utf-8"))
+        else:
+            obj = json.loads(Path(src).read_text(encoding="utf-8"))
+    except Exception as e:  # missing branch, network, bad JSON: publish without platforms
+        print(f"warning: platforms unavailable ({e!r}); publishing without them", file=sys.stderr)
+        return None
+    if not valid_state(obj):
+        print("warning: platforms.json is invalid; publishing without them", file=sys.stderr)
+        return None
+    cutoff = (today - timedelta(days=KEEP_DAYS)).isoformat()
+    kept = {}
+    for k, v in obj["obs"].items():
+        v = [x for x in v if x[1] >= cutoff]
+        if v:
+            kept[k] = v
+    obj["obs"] = kept
+    return obj
+
+
+def attach_platforms(feeds: dict, state) -> None:
+    """Add `platforms: {stop: {train: platform}}` to each feed, for its own trains and stops only.
+
+    A train's own observations decide; a train without enough of them borrows the usual platform of
+    the other trains with the same line and destination at that stop. Train numbers that map to more
+    than one (line, destination) in a feed are ambiguous and neither lend nor borrow.
+    """
+    if not state:
+        return
+    obs = state["obs"]
+    for feed in feeds.values():
+        routes = defaultdict(set)  # train -> {(line, dest)}
+        calls = defaultdict(set)  # train -> stops it calls at (except where it terminates)
+        for t in feed["trips"]:
+            train = train_number(t["id"])
+            if train:
+                routes[train].add((t["line"], t["dest"]))
+                calls[train].update(sid for sid, _ in t["times"][:-1])
+        unique = {train: next(iter(r)) for train, r in routes.items() if len(r) == 1}
+        pooled = defaultdict(list)  # (stop, line, dest) -> observations of unambiguous trains
+        for train, route in unique.items():
+            for stop in calls[train]:
+                pooled[(stop, *route)].extend(obs.get(f"{stop}|{train}", []))
+        platforms = defaultdict(dict)
+        for train, stops in calls.items():
+            for stop in stops:
+                p = usual(obs.get(f"{stop}|{train}", []))
+                if p is None and train in unique:
+                    p = usual(pooled[(stop, *unique[train])])
+                if p is not None:
+                    platforms[stop][train] = p
+        if platforms:
+            feed["platforms"] = {s: dict(sorted(v.items())) for s, v in sorted(platforms.items())}
+
+
 def validate_feed(feed: dict, today: date, min_stops: int = 20) -> list:
     """Return a list of problems; an empty list means the feed can be published."""
     errors = []
@@ -424,6 +502,7 @@ def main(argv=None) -> int:
     parser.add_argument("--date", type=date.fromisoformat, help="service date YYYY-MM-DD (default: today in Madrid)")
     parser.add_argument("--min-stops", type=int, default=20, help="minimum stops for the v1 Valencia feed")
     parser.add_argument("--previous-base", default=PAGES_BASE, help="where the previous publication lives")
+    parser.add_argument("--platforms", help="platforms.json from the collector (path or URL); optional")
     args = parser.parse_args(argv)
     base = args.previous_base.rstrip("/")
 
@@ -437,6 +516,12 @@ def main(argv=None) -> int:
         with zipfile.ZipFile(zpath) as z:
             z.extractall(tmp / "gtfs")
         feeds = build_nucleos(tmp / "gtfs", today)
+        try:
+            attach_platforms(feeds, load_platforms(args.platforms, today))
+        except Exception as e:  # platforms are a bonus: never block the schedule
+            print(f"warning: platforms skipped ({e!r})", file=sys.stderr)
+            for f in feeds.values():
+                f.pop("platforms", None)
         try:
             v1 = build_feed(tmp / "gtfs", today)
             v1_errors = None

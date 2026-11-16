@@ -28,8 +28,12 @@ jobs:
           python-version: "3.12"
       - name: Test
         run: python -m unittest discover -s tests -v
+      # Platform observations from the collector (branch platform-data); optional: without them the
+      # feeds are published without platforms.
+      - name: Fetch platform observations
+        run: git fetch --depth=1 origin platform-data && git show FETCH_HEAD:platforms.json > ../platforms.json || echo "no platform data"
       - name: Build feed
-        run: python build_feed.py --out ../site
+        run: python build_feed.py --out ../site --platforms ../platforms.json
       - name: Render legal and support pages
         env:
           CONTACT_EMAIL: ${{ vars.CONTACT_EMAIL }}
