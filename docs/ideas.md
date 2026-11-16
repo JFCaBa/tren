@@ -23,7 +23,7 @@ realmente cada operador.
 
 ## Otros países (análisis rápido, 16-11-2026)
 
-### Reino Unido — viable, el más interesante como producto
+### Reino Unido — ⭐ SIGUIENTE PROYECTO (decidido 16-11-2026)
 - Datos: Darwin (National Rail) vía Rail Data Marketplace, gratuito con registro.
   Salidas en tiempo real por estación con retrasos, cancelaciones y **andén incluido**.
   Una sola fuente para ~2.500 estaciones.
@@ -32,7 +32,24 @@ realmente cada operador.
   casi todo el procesado de horarios (se piden las salidas de la estación cercana).
 - Competencia muy fuerte (app de National Rail, Trainline, Realtime Trains...).
   Diferenciarse por sencillez. App en inglés.
-- Pendiente: condiciones de uso de Darwin (límites, atribución, uso comercial).
+- Revisión de los 3 puntos previos (16-11-2026):
+  1. **Licencia**: el Live Departure Board del RDM es gratuito, licencia abierta (OGL con
+     enmiendas), permite redistribuir y exige **atribución a National Rail**. Uso
+     comercial NO confirmado: la página de NR sobre paneles públicos habla de uso no
+     comercial (aunque se refiere a la web, no a la API). Andén es gratis y sin
+     anuncios, lo que ayuda. Antes de escribir código: registrarse en raildata.org.uk
+     (lo hace el usuario), leer el PDF de licencia del producto y, si hay dudas,
+     preguntar a Rail Delivery Group.
+  2. **Servidor**: Cloudflare Worker. Plan gratis = 100.000 peticiones/día (reinicio a
+     medianoche UTC, 1.000/min). Con caché por estación de ~30 s y la app consultando
+     solo con la pantalla abierta, da para cientos de usuarios diarios; si se queda
+     corto, plan de pago (~5 $/mes) sin límite de peticiones. La clave vive en el Worker.
+  3. **Competencia**: además de National Rail, Trainline y Realtime Trains, hay muchas
+     apps pequeñas de paneles (Railtime, On Rails, Train Times Live, StationWatch,
+     Railboard), varias con widgets. Nicho saturado. Diferenciación posible: cero
+     configuración (abrir → estación más cercana sola, sin buscar), andén en grande,
+     sencillez y privacidad (sin cuenta, sin anuncios, sin datos). Validar con
+     usuarios reales antes de invertir mucho.
 
 ### Portugal — técnicamente fácil, poco valor sin tiempo real
 - CP publica GTFS oficial (MobilityData mdb-2057): el pipeline actual sirve casi entero.
@@ -43,5 +60,7 @@ realmente cada operador.
 - Solo merece la pena si CP da acceso al tiempo real: escribirles para preguntarlo.
 - Pendiente: licencia del GTFS de CP.
 
-Fuentes: https://nre.co.uk/developers/ · https://mobilitydatabase.org/feeds/gtfs/mdb-2057 ·
+Fuentes: https://nre.co.uk/developers/ · https://www.nationalrail.co.uk/developers/darwin-data-feeds/ ·
+https://raildata.org.uk/dataProduct/P-0a6089d3-069c-4949-85ca-e7fdd62a7a20/overview ·
+https://developers.cloudflare.com/workers/platform/limits/ · https://mobilitydatabase.org/feeds/gtfs/mdb-2057 ·
 https://cp.pt/institucional/en/press/press-releases/info-tempo-real
