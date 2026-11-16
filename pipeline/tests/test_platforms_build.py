@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import sys
 import tempfile
@@ -88,6 +90,26 @@ class LoadTest(unittest.TestCase):
             self.assertIsNone(load_platforms(self.write(text), TODAY), text)
         self.assertIsNone(load_platforms(None, TODAY))
         self.assertIsNone(load_platforms("/nonexistent/platforms.json", TODAY))
+
+    def test_load_platforms_warning_is_a_github_annotation(self):
+        for src in [self.write("{"), "/nonexistent/platforms.json"]:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                self.assertIsNone(load_platforms(src, TODAY))
+            self.assertIn("::warning::", err.getvalue(), src)
+
+    def test_load_platforms_warns_when_collector_stalled(self):
+        stalled = state({"b|1": [["2", "2026-11-10"]]})
+        stalled["updated"] = "2026-11-13T08:00:00Z"
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            s = load_platforms(self.write(json.dumps(stalled)), TODAY)
+        self.assertIsNotNone(s)  # still used: it is valid, just old
+        self.assertIn("::warning::", err.getvalue())
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            load_platforms(self.write(json.dumps(state({"b|1": [["2", "2026-11-15"]]}))), TODAY)
+        self.assertNotIn("::warning::", err.getvalue())
 
     def test_load_platforms_expires(self):
         s = load_platforms(self.write(json.dumps(state({"a|1": [["2", "2026-10-01"]],

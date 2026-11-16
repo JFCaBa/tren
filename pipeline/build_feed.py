@@ -330,6 +330,14 @@ def usual(obs: list):
     return best if n / len(obs) >= USUAL_MIN_SHARE else None
 
 
+def _platform_warning(msg: str) -> None:
+    """A warning that GitHub Actions also shows as an annotation on the run summary."""
+    print(f"::warning::{msg}", file=sys.stderr)
+
+
+STALE_COLLECTOR = timedelta(days=1)
+
+
 def load_platforms(src, today: date):
     """platforms.json (path or URL) from the collector, without expired keys; None if unusable."""
     if not src:
@@ -341,11 +349,17 @@ def load_platforms(src, today: date):
         else:
             obj = json.loads(Path(src).read_text(encoding="utf-8"))
     except Exception as e:  # missing branch, network, bad JSON: publish without platforms
-        print(f"warning: platforms unavailable ({e!r}); publishing without them", file=sys.stderr)
+        _platform_warning(f"platforms unavailable ({e!r}); publishing without them")
         return None
     if not valid_state(obj):
-        print("warning: platforms.json is invalid; publishing without them", file=sys.stderr)
+        _platform_warning("platforms.json is invalid; publishing without them")
         return None
+    try:
+        updated = datetime.strptime(obj.get("updated", ""), "%Y-%m-%dT%H:%M:%SZ").date()
+    except (TypeError, ValueError):
+        updated = None
+    if updated is None or today - updated > STALE_COLLECTOR:
+        _platform_warning(f"platforms.json last updated {obj.get('updated') or 'never'}: is the collector running?")
     cutoff = (today - timedelta(days=KEEP_DAYS)).isoformat()
     kept = {}
     for k, v in obj["obs"].items():
@@ -519,7 +533,7 @@ def main(argv=None) -> int:
         try:
             attach_platforms(feeds, load_platforms(args.platforms, today))
         except Exception as e:  # platforms are a bonus: never block the schedule
-            print(f"warning: platforms skipped ({e!r})", file=sys.stderr)
+            _platform_warning(f"platforms skipped ({e!r})")
             for f in feeds.values():
                 f.pop("platforms", None)
         try:
