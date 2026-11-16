@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:proximotren/app_controller.dart';
 import 'package:proximotren/data/json_cache.dart';
+import 'package:proximotren/data/positions.dart';
 import 'package:proximotren/data/realtime.dart';
+import 'package:proximotren/domain/board.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
@@ -26,14 +28,19 @@ void main() {
   });
   tearDown(() => dir.deleteSync(recursive: true));
 
+  // Tests may move the clock; the positions client shares it so freshness is consistent.
+  late tz.TZDateTime clockNow;
+  setUp(() => clockNow = tz.TZDateTime(tz.getLocation('Europe/Madrid'), 2026, 11, 15, 18, 0));
+
   Future<AppController> make() async => AppController(
         server.client,
         dir,
         RealtimeClient(server.client),
         location,
         await SharedPreferences.getInstance(),
-        clock: () => tz.TZDateTime(tz.getLocation('Europe/Madrid'), 2026, 11, 15, 18, 0),
+        clock: () => clockNow,
         periodic: timers.create,
+        positions: PositionsClient(server.client, now: () => clockNow.toUtc()),
       );
 
   Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 30));
@@ -51,6 +58,69 @@ void main() {
     await indexCache(server.client, dir).refresh();
     await nucleoCache(server.client, dir, '40').refresh();
   }
+
+  group('live platform', () {
+    // T2 leaves Silla (64200) at 19:00; the realtime fixture is stale by then, so it is on time.
+    tz.TZDateTime minute(int h, int m) => tz.TZDateTime(tz.getLocation('Europe/Madrid'), 2026, 11, 15, h, m);
+    Departure? t2(AppController c) => c.board!.departures.where((d) => d.tripId == 'T2').firstOrNull;
+
+    test('does not fetch positions when no train within 5 min', () async {
+      server.positionsBody = positionsJson('T2', '64200', '2', clockNow);
+      final c = await startedAt(nearSilla);
+      timers.timers.last.fire();
+      await settle();
+      expect(c.board, isNotNull);
+      expect(server.positionsCalls, 0);
+    });
+
+    test('fetches positions and shows live platform when a train is near', () async {
+      clockNow = minute(18, 56);
+      server.positionsBody = positionsJson('T2', '64200', '2', clockNow);
+      final c = await startedAt(nearSilla);
+      expect(t2(c)!.minutes, lessThanOrEqualTo(5));
+      timers.timers.last.fire();
+      await settle();
+      expect(server.positionsCalls, greaterThan(0));
+      expect(t2(c)!.livePlatform, '2');
+    });
+
+    test('a platform reported at another station is not shown', () async {
+      clockNow = minute(18, 56);
+      server.positionsBody = positionsJson('T2', '65000', '7', clockNow);
+      final c = await startedAt(nearSilla);
+      timers.timers.last.fire();
+      await settle();
+      expect(t2(c)!.livePlatform, isNull);
+    });
+
+    test('positions failure keeps the last live platform until it is stale', () async {
+      clockNow = minute(18, 56);
+      server.positionsBody = positionsJson('T2', '64200', '2', clockNow);
+      final c = await startedAt(nearSilla);
+      timers.timers.last.fire();
+      await settle();
+      server.positionsFails = true;
+      timers.timers.last.fire();
+      await settle();
+      expect(t2(c)!.livePlatform, '2');
+      clockNow = minute(18, 59);
+      timers.timers.last.fire();
+      await settle();
+      expect(t2(c)!.livePlatform, isNull);
+    });
+
+    test('older positions response is ignored', () async {
+      clockNow = minute(18, 56);
+      server.positionsBody = positionsJson('T2', '64200', '2', clockNow);
+      final c = await startedAt(nearSilla);
+      timers.timers.last.fire();
+      await settle();
+      server.positionsBody = positionsJson('T2', '64200', '5', clockNow.subtract(const Duration(seconds: 60)));
+      timers.timers.last.fire();
+      await settle();
+      expect(t2(c)!.livePlatform, '2');
+    });
+  });
 
   test('picks nearest station from location and loads its nucleo', () async {
     final c = await startedAt(nearSilla);

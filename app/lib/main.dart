@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 
 import 'app_controller.dart';
+import 'data/positions.dart';
 import 'data/realtime.dart';
 import 'location.dart';
 import 'ui/home_screen.dart';
@@ -21,6 +22,7 @@ Future<void> main() async {
     RealtimeClient(client),
     GeolocatorLocationSource(),
     await SharedPreferences.getInstance(),
+    positions: PositionsClient(client),
   );
   runApp(ProximoTrenApp(controller: controller));
 }

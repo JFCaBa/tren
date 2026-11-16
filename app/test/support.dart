@@ -18,6 +18,9 @@ class FakeServer {
   String? indexOverride; // served instead of fixtures/index.json
   final failing = <String>{}; // e.g. 'feeds/10.json'
   final holds = <String, Completer<void>>{}; // path -> gate
+  String? positionsBody; // served at gtfsrt.renfe.com/vehicle_positions.json (404 when null)
+  bool positionsFails = false;
+  int positionsCalls = 0;
   bool rtFails = false;
   bool rtHangs = false;
   int rtCalls = 0;
@@ -27,6 +30,12 @@ class FakeServer {
   void release(String path) => holds.remove(path)?.complete();
 
   late final http.Client client = MockClient((req) async {
+    if (req.url.host == 'gtfsrt.renfe.com' && req.url.path.endsWith('vehicle_positions.json')) {
+      positionsCalls++;
+      if (positionsFails) throw const SocketException('offline');
+      final body = positionsBody;
+      return body == null ? http.Response('not found', 404) : okJson(body);
+    }
     if (req.url.host == 'gtfsrt.renfe.com') {
       rtCalls++;
       if (rtHangs) return Completer<http.Response>().future;
@@ -98,4 +107,23 @@ class FakeTimer implements Timer {
   bool get isActive => _active;
   @override
   int get tick => 0;
+}
+
+/// A vehicle_positions.json with one train at [stopId] showing [platform], stamped at [at].
+String positionsJson(String tripId, String stopId, String platform, DateTime at) {
+  final ts = at.millisecondsSinceEpoch ~/ 1000;
+  return jsonEncode({
+    'header': {'timestamp': '$ts'},
+    'entity': [
+      {
+        'vehicle': {
+          'trip': {'tripId': tripId},
+          'currentStatus': 'INCOMING_AT',
+          'timestamp': '$ts',
+          'stopId': stopId,
+          'vehicle': {'label': 'C2-12345-PLATF.($platform)'},
+        },
+      },
+    ],
+  });
 }

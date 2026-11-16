@@ -119,6 +119,12 @@ void main() {
     expect(live.usualPlatform, '1');
   });
 
+  test('live platform only for the imminent run of a trip that repeats on several days', () {
+    final f = feedOf([out('R', hm(18, 10), dates: const {'2026-11-15', '2026-11-16'})]);
+    final b = computeBoard([f], '64200', now(), null, livePlatforms: const {'R': '3'});
+    expect(b.departures.map((d) => d.livePlatform), ['3', null]);
+  });
+
   test('usual platform of another station is not used', () {
     final f = feedOf([out('3019L23525C1', hm(18, 10))], platforms: const {'65000': {'23525': '4'}});
     expect(computeBoard([f], '64200', now(), null).departures.single.usualPlatform, isNull);

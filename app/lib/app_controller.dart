@@ -10,6 +10,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'data/feed.dart';
 import 'data/json_cache.dart';
 import 'data/nucleo_index.dart';
+import 'data/positions.dart';
 import 'data/realtime.dart';
 import 'domain/board.dart';
 import 'domain/nearest.dart';
@@ -34,13 +35,16 @@ class AppController extends ChangeNotifier {
     this._prefs, {
     tz.TZDateTime Function()? clock,
     PeriodicTimerFactory? periodic,
+    PositionsClient? positions,
   })  : _clock = clock ?? madridNow,
+        _positionsClient = positions,
         _periodic = periodic ?? Timer.periodic,
         _indexCache = indexCache(_client, _cacheDir);
 
   final http.Client _client;
   final Directory _cacheDir;
   final RealtimeClient _rtClient;
+  final PositionsClient? _positionsClient;
   final LocationSource _location;
   final SharedPreferences _prefs;
   final tz.TZDateTime Function() _clock;
@@ -62,6 +66,9 @@ class AppController extends ChangeNotifier {
   String? error;
   bool needsStationPick = false;
   RtSnapshot? rt;
+
+  /// Last live platforms from Renfe; kept across failed polls, shown while fresh.
+  PlatformSnapshot? positions;
 
   /// True once a realtime poll has answered or failed (no "Sin tiempo real" flash at launch).
   bool rtAttempted = false;
@@ -214,12 +221,33 @@ class AppController extends ChangeNotifier {
     _recompute();
   }
 
+  /// A platform only shows up while the train arrives (1–3 min before), so positions (~170 KB) are
+  /// only fetched when some train is this close.
+  static const positionsWithinMinutes = 5;
+
   Future<void> _pollRt() async {
-    try {
-      rt = await _rtClient.fetch();
-    } catch (_) {
-      // Board.rtStale reflects it.
-    }
+    final wantPositions = _positionsClient != null &&
+        (board?.departures.any((d) => d.minutes <= positionsWithinMinutes) ?? false);
+    await Future.wait([
+      () async {
+        try {
+          rt = await _rtClient.fetch();
+        } catch (_) {
+          // Board.rtStale reflects it.
+        }
+      }(),
+      if (wantPositions)
+        () async {
+          try {
+            final p = await _positionsClient.fetch();
+            final last = positions;
+            if (last == null || !p.feedTimestamp.isBefore(last.feedTimestamp)) positions = p; // drop out-of-order answers
+          } catch (_) {
+            // Keep the last snapshot; platformsAt hides it once stale.
+          }
+        }(),
+    ]);
+    if (_disposed) return;
     rtAttempted = true;
     _recompute();
   }
@@ -336,7 +364,10 @@ class AppController extends ChangeNotifier {
     final s = station;
     board = (s == null || (feeds.isEmpty && !_feedsSettled))
         ? null
-        : computeBoard(feeds, s.id, _clock(), rt, destinations: filters, requiredNucleos: s.nucleos);
+        : computeBoard(feeds, s.id, _clock(), rt,
+            destinations: filters,
+            requiredNucleos: s.nucleos,
+            livePlatforms: platformsAt(positions, s.id, _clock()));
     if (!_disposed) notifyListeners();
   }
 }

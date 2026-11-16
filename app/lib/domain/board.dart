@@ -177,7 +177,9 @@ Board computeBoard(
         minutes: c.d.minutes,
         color: c.d.color,
         usualPlatform: _usualPlatform(c.feed, stopId, c.trip.id),
-        livePlatform: livePlatforms[c.trip.id],
+        // Renfe only reports a platform while the train arrives; a trip id that repeats on other
+        // days must not lend it to tomorrow's run.
+        livePlatform: c.d.minutes <= _livePlatformWithinMinutes ? livePlatforms[c.trip.id] : null,
         stops: [
           for (final (id, secs) in c.trip.times.skip(c.idx))
             StopTime(
@@ -204,6 +206,8 @@ Board computeBoard(
     feedCoversToday: feeds.isNotEmpty && feeds.every((f) => f.validFrom.compareTo(today) <= 0 && today.compareTo(f.validTo) <= 0),
   );
 }
+
+const _livePlatformWithinMinutes = 15;
 
 String? _usualPlatform(Feed feed, String stopId, String tripId) {
   final train = trainNumber(tripId);
