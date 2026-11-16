@@ -1,2 +1,3 @@
 const baseUrl = 'https://jfcaba.github.io/tren';
-const rtUrl = 'https://gtfsrt.renfe.com/trip_updates.json';
+const privacyUrl = '$baseUrl/privacidad.html';
+const rtUrl ='https://gtfsrt.renfe.com/trip_updates.json';

@@ -57,6 +57,29 @@ void main() {
     expect(find.textContaining(RegExp(r'actualizado a las \d\d:\d\d')), findsOneWidget);
   });
 
+  testWidgets('Privacidad link opens the privacy policy page', (tester) async {
+    final c = await started(tester);
+    final opened = <Uri>[];
+    await tester.pumpWidget(MaterialApp(
+        home: HomeScreen(controller: c, openUrl: (u) async => opened.add(u))));
+    await tester.scrollUntilVisible(find.text('Privacidad'), 200,
+        scrollable: find.byWidgetPredicate((w) => w is Scrollable && w.axisDirection == AxisDirection.down).first);
+    await tester.tap(find.text('Privacidad'));
+    await tester.pump();
+    expect(opened, [Uri.parse('https://jfcaba.github.io/tren/privacidad.html')]);
+  });
+
+  testWidgets('Privacidad link shows a message when the page cannot be opened', (tester) async {
+    final c = await started(tester);
+    await tester.pumpWidget(MaterialApp(
+        home: HomeScreen(controller: c, openUrl: (u) async => throw Exception('no browser'))));
+    await tester.scrollUntilVisible(find.text('Privacidad'), 200,
+        scrollable: find.byWidgetPredicate((w) => w is Scrollable && w.axisDirection == AxisDirection.down).first);
+    await tester.tap(find.text('Privacidad'));
+    await tester.pump();
+    expect(find.text('No se pudo abrir la política de privacidad'), findsOneWidget);
+  });
+
   testWidgets('tapping a chip filters the list', (tester) async {
     final c = await started(tester);
     await show(tester, c);

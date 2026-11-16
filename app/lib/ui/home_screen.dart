@@ -1,7 +1,9 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:timezone/timezone.dart' as tz;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../app_controller.dart';
+import '../config.dart';
 import '../domain/board.dart';
 import 'departure_row.dart';
 import 'names.dart';
@@ -11,8 +13,17 @@ import 'station_picker.dart';
 const farFromCercaniasMeters = 25000;
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.controller});
+  const HomeScreen({super.key, required this.controller, this.openUrl = _launchExternal});
   final AppController controller;
+
+  /// Opens a web page; injectable for tests.
+  final Future<void> Function(Uri) openUrl;
+
+  static Future<void> _launchExternal(Uri url) async {
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      throw StateError('Could not open $url');
+    }
+  }
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -25,6 +36,15 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _expanded;
 
   void _toggle(String key) => setState(() => _expanded = _expanded == key ? null : key);
+
+  Future<void> _openPrivacy(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await widget.openUrl(Uri.parse(privacyUrl));
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(content: Text('No se pudo abrir la política de privacidad')));
+    }
+  }
 
   Future<void> _pick(BuildContext context) async {
     final index = controller.index;
@@ -134,6 +154,12 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
           const SizedBox(height: 24),
           Text(_footer(), textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
+          Center(
+            child: TextButton(
+              onPressed: () => _openPrivacy(context),
+              child: Text('Privacidad', style: theme.textTheme.bodySmall?.copyWith(decoration: TextDecoration.underline)),
+            ),
+          ),
         ],
       ),
     );
