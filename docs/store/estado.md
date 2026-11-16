@@ -5,6 +5,7 @@
 - App 6835200430, "Andén · Próximo tren", cuenta 338 TAC, S.L.
 - Versión 1.0: ficha completa, capturas de iPhone 6,3" (1206×2622; App Store Connect ya no acepta 6,9" como tamaño principal) y privacidad "Datos no recogidos".
 - Versión 1.0 **enviada a revisión** por el usuario el 16-11-2026. Publicación manual tras la aprobación.
+- 16-11-2026: Apple pidió información (guideline 2.1). Respondido con las notas de `review-notes-en.md` y una grabación en iPhone, notas copiadas en App Review Information y **reenviada**: Waiting for Review.
 - **Build 10 = versión 1.1.0 (vía)** subido a App Store Connect: disponible en TestFlight cuando se procese. Se envía a revisión como versión 1.1 cuando la 1.0 esté aprobada (con confirmación del usuario). Novedades en `listing-es.md`.
 
 ## Google Play (Android)
