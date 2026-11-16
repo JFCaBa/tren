@@ -24,6 +24,7 @@ realmente cada operador.
 ## Otros países (análisis rápido, 16-11-2026)
 
 ### Reino Unido — ⭐ SIGUIENTE PROYECTO (decidido 16-11-2026)
+- **Platform vive en el repo `platform`** (github.com/JFCaBa/platform): diseño, plan, notas de Darwin.
 - Datos: Darwin (National Rail) vía Rail Data Marketplace, gratuito con registro.
   Salidas en tiempo real por estación con retrasos, cancelaciones y **andén incluido**.
   Una sola fuente para ~2.500 estaciones.
