@@ -31,6 +31,15 @@ def state(obs):
 TWO_DAYS = [["6", "2026-11-14"], ["6", "2026-11-15"]]
 
 
+class QuietStderr(unittest.TestCase):
+    """These tests trigger platform warnings on purpose; keep them out of CI annotations."""
+
+    def setUp(self):
+        quiet = contextlib.redirect_stderr(io.StringIO())
+        quiet.__enter__()
+        self.addCleanup(quiet.__exit__, None, None, None)
+
+
 class UsualTest(unittest.TestCase):
     def test_usual_threshold(self):
         self.assertEqual(usual([["2", "d1"], ["2", "d2"], ["3", "d3"]]), "2")
@@ -41,7 +50,7 @@ class UsualTest(unittest.TestCase):
         self.assertIsNone(usual([]))
 
 
-class AttachTest(unittest.TestCase):
+class AttachTest(QuietStderr):
     def test_attach_by_train(self):
         feeds = feeds_with(trip("3019L23525C1", "C1", "Utrera", ["51200", "51003"]))
         attach_platforms(feeds, state({"51200|23525": TWO_DAYS}))
@@ -79,7 +88,7 @@ class AttachTest(unittest.TestCase):
         self.assertNotIn("23527", feeds["30"]["platforms"]["51200"])
 
 
-class LoadTest(unittest.TestCase):
+class LoadTest(QuietStderr):
     def write(self, text):
         p = Path(tempfile.mkdtemp()) / "platforms.json"
         p.write_text(text)
@@ -122,7 +131,7 @@ class LoadTest(unittest.TestCase):
         self.assertEqual(s["obs"]["a|1"], [["6", "2026-11-15"]])
 
 
-class MainTest(unittest.TestCase):
+class MainTest(QuietStderr):
     def test_main_survives_attach_error(self):
         import zipfile
 
