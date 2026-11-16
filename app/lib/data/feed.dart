@@ -61,6 +61,7 @@ class Feed {
     required this.lineColors,
     required this.stops,
     required this.trips,
+    this.platforms = const {},
   });
 
   final String nucleo;
@@ -74,6 +75,9 @@ class Feed {
   final List<Stop> stops;
   final List<Trip> trips;
 
+  /// Usual platform per stop and train number (`platforms` in the feed; optional).
+  final Map<String, Map<String, String>> platforms;
+
   factory Feed.fromJson(Map<String, dynamic> j) {
     if (j['version'] != 2) throw FormatException('unsupported feed version ${j['version']}');
     return Feed(
@@ -85,6 +89,22 @@ class Feed {
       lineColors: {for (final e in (j['lines'] as Map? ?? const {}).entries) e.key as String: _argb(e.value)},
       stops: [for (final s in j['stops'] as List) Stop.fromJson(s as Map<String, dynamic>)],
       trips: [for (final t in j['trips'] as List) Trip.fromJson(t as Map<String, dynamic>)],
+      platforms: _platforms(j['platforms']),
     );
   }
+}
+
+/// Tolerant: anything that is not a map of maps of strings is dropped, never thrown.
+Map<String, Map<String, String>> _platforms(Object? raw) {
+  if (raw is! Map) return const {};
+  final out = <String, Map<String, String>>{};
+  for (final e in raw.entries) {
+    if (e.key is! String || e.value is! Map) continue;
+    final byTrain = <String, String>{
+      for (final t in (e.value as Map).entries)
+        if (t.key is String && t.value is String) t.key as String: t.value as String,
+    };
+    if (byTrain.isNotEmpty) out[e.key as String] = byTrain;
+  }
+  return out;
 }

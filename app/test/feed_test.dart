@@ -34,6 +34,18 @@ void main() {
     expect(Feed.fromJson(j).lineColors, isEmpty);
   });
 
+  test('parses optional platforms map', () {
+    final j = load('feed_40.json')..['platforms'] = {'65000': {'12345': '2'}};
+    expect(Feed.fromJson(j).platforms['65000']!['12345'], '2');
+    expect(Feed.fromJson(load('feed_40.json')).platforms, isEmpty);
+  });
+
+  test('malformed platforms are ignored', () {
+    expect(Feed.fromJson(load('feed_40.json')..['platforms'] = 'x').platforms, isEmpty);
+    final j = load('feed_40.json')..['platforms'] = {'65000': {'12345': 2, '12346': '3'}, '64200': 'y'};
+    expect(Feed.fromJson(j).platforms, {'65000': {'12346': '3'}});
+  });
+
   test('rejects v1 feed', () {
     final j = load('feed_40.json')..['version'] = 1;
     expect(() => Feed.fromJson(j), throwsFormatException);

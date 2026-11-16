@@ -4,6 +4,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../data/feed.dart';
 import '../data/realtime.dart';
+import 'train.dart';
 
 const _rtMaxAge = Duration(minutes: 2);
 const _feedMaxAge = Duration(days: 3);
@@ -32,6 +33,8 @@ class Departure {
     required this.minutes,
     this.color = greyLine,
     this.stops = const [],
+    this.usualPlatform,
+    this.livePlatform,
   });
 
   final String tripId;
@@ -49,6 +52,10 @@ class Departure {
   /// ARGB line color from the núcleo feed.
   final int color;
   final List<StopTime> stops;
+
+  /// Platform this train usually uses at the station (learned), and the one Renfe reports live.
+  final String? usualPlatform;
+  final String? livePlatform;
 
   /// One train on one service day (a trip id alone could repeat across days).
   String get id => '$tripId@${scheduled.toIso8601String()}';
@@ -94,6 +101,7 @@ Board computeBoard(
   Set<String> destinations = const {},
   int limit = 8,
   List<String> requiredNucleos = const [],
+  Map<String, String> livePlatforms = const {},
 }) {
   final loc = tz.getLocation('Europe/Madrid');
   now = tz.TZDateTime.from(now, loc);
@@ -168,6 +176,8 @@ Board computeBoard(
         canceled: c.d.canceled,
         minutes: c.d.minutes,
         color: c.d.color,
+        usualPlatform: _usualPlatform(c.feed, stopId, c.trip.id),
+        livePlatform: livePlatforms[c.trip.id],
         stops: [
           for (final (id, secs) in c.trip.times.skip(c.idx))
             StopTime(
@@ -193,4 +203,9 @@ Board computeBoard(
     feedStale: feeds.any((f) => now.difference(f.generatedAt) > _feedMaxAge),
     feedCoversToday: feeds.isNotEmpty && feeds.every((f) => f.validFrom.compareTo(today) <= 0 && today.compareTo(f.validTo) <= 0),
   );
+}
+
+String? _usualPlatform(Feed feed, String stopId, String tripId) {
+  final train = trainNumber(tripId);
+  return train == null ? null : feed.platforms[stopId]?[train];
 }

@@ -34,7 +34,8 @@ Feed feedOf(List<Trip> trips,
         String validTo = '2026-11-22',
         String nucleo = '40',
         List<Stop> stops = const [nord, silla, gandia],
-        Map<String, int> colors = const {'C1': 0xFF7AB3DE, 'C2': 0xFFF79529}}) =>
+        Map<String, int> colors = const {'C1': 0xFF7AB3DE, 'C2': 0xFFF79529},
+        Map<String, Map<String, String>> platforms = const {}}) =>
     Feed(
       nucleo: nucleo,
       name: 'N$nucleo',
@@ -44,6 +45,7 @@ Feed feedOf(List<Trip> trips,
       validTo: validTo,
       stops: stops,
       trips: trips,
+      platforms: platforms,
     );
 
 tz.TZDateTime at(int y, int mo, int d, int h, int mi, [int s = 0]) => tz.TZDateTime(madrid, y, mo, d, h, mi, s);
@@ -105,6 +107,21 @@ void main() {
     final b = computeBoard([feedOf([out('o', hm(18, 10))], nucleo: '47')], '64200', now(), null, requiredNucleos: ['47', '60']);
     expect(b.departures, hasLength(1));
     expect(b.missingNucleos, ['60']);
+  });
+
+  test('usual platform from the feed, live platform from the caller', () {
+    final f = feedOf([out('3019L23525C1', hm(18, 10))], platforms: const {'64200': {'23525': '1'}});
+    final d = computeBoard([f], '64200', now(), null).departures.single;
+    expect(d.usualPlatform, '1');
+    expect(d.livePlatform, isNull);
+    final live = computeBoard([f], '64200', now(), null, livePlatforms: const {'3019L23525C1': '3'}).departures.single;
+    expect(live.livePlatform, '3');
+    expect(live.usualPlatform, '1');
+  });
+
+  test('usual platform of another station is not used', () {
+    final f = feedOf([out('3019L23525C1', hm(18, 10))], platforms: const {'65000': {'23525': '4'}});
+    expect(computeBoard([f], '64200', now(), null).departures.single.usualPlatform, isNull);
   });
 
   test('test_excludes_trips_terminating_at_stop', () {
