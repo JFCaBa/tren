@@ -23,6 +23,13 @@ int lineTextColor(int argb) {
   return l > 0.179 ? 0xFF000000 : 0xFFFFFFFF; // crossover where black beats white on WCAG contrast
 }
 
+/// "Vía 3" when Renfe reports it live, "vía 2 · habitual" when only learned, else null.
+String? platformText(Departure d) {
+  if (d.livePlatform != null) return 'Vía ${d.livePlatform}';
+  if (d.usualPlatform != null) return 'vía ${d.usualPlatform} · habitual';
+  return null;
+}
+
 String hhmm(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
 class LineBadge extends StatelessWidget {
@@ -59,6 +66,7 @@ class DepartureRow extends StatelessWidget {
     final theme = Theme.of(context);
     final muted = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant);
     final delay = _delayText;
+    final platform = platformText(d);
     final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -66,7 +74,22 @@ class DepartureRow extends StatelessWidget {
           LineBadge(d.line, d.color),
           const SizedBox(width: 12),
           Expanded(
-            child: Text('→ ${shortStopName(d.dest)}', style: theme.textTheme.bodyLarge, maxLines: 2, overflow: TextOverflow.ellipsis),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('→ ${shortStopName(d.dest)}', style: theme.textTheme.bodyLarge, maxLines: 2, overflow: TextOverflow.ellipsis),
+                if (platform != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      platform,
+                      style: d.livePlatform != null
+                          ? theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700)
+                          : muted,
+                    ),
+                  ),
+              ],
+            ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
