@@ -84,6 +84,37 @@ void main() {
       expect(t2(c)!.livePlatform, '2');
     });
 
+    test('positions are fetched at most once a minute', () async {
+      clockNow = minute(18, 56);
+      server.positionsBody = positionsJson('T2', '64200', '2', clockNow);
+      await startedAt(nearSilla);
+      timers.timers.last.fire();
+      await settle();
+      final first = server.positionsCalls;
+      expect(first, greaterThan(0));
+      clockNow = clockNow.add(const Duration(seconds: 30));
+      timers.timers.last.fire();
+      await settle();
+      expect(server.positionsCalls, first);
+      clockNow = clockNow.add(const Duration(seconds: 30));
+      timers.timers.last.fire();
+      await settle();
+      expect(server.positionsCalls, first + 1);
+    });
+
+    test('a clock moved backwards does not block positions', () async {
+      clockNow = minute(18, 56);
+      server.positionsBody = positionsJson('T2', '64200', '2', clockNow);
+      await startedAt(nearSilla);
+      timers.timers.last.fire();
+      await settle();
+      final first = server.positionsCalls;
+      clockNow = minute(18, 55);
+      timers.timers.last.fire();
+      await settle();
+      expect(server.positionsCalls, first + 1);
+    });
+
     test('a platform reported at another station is not shown', () async {
       clockNow = minute(18, 56);
       server.positionsBody = positionsJson('T2', '65000', '7', clockNow);
@@ -100,8 +131,11 @@ void main() {
       timers.timers.last.fire();
       await settle();
       server.positionsFails = true;
+      clockNow = minute(18, 57);
+      final before = server.positionsCalls;
       timers.timers.last.fire();
       await settle();
+      expect(server.positionsCalls, before + 1);
       expect(t2(c)!.livePlatform, '2');
       clockNow = minute(18, 59);
       timers.timers.last.fire();
@@ -115,9 +149,12 @@ void main() {
       final c = await startedAt(nearSilla);
       timers.timers.last.fire();
       await settle();
-      server.positionsBody = positionsJson('T2', '64200', '5', clockNow.subtract(const Duration(seconds: 60)));
+      server.positionsBody = positionsJson('T2', '64200', '5', clockNow.subtract(const Duration(seconds: 30)));
+      clockNow = minute(18, 57);
+      final before = server.positionsCalls;
       timers.timers.last.fire();
       await settle();
+      expect(server.positionsCalls, before + 1);
       expect(t2(c)!.livePlatform, '2');
     });
   });

@@ -56,6 +56,21 @@ class ObservationsTest(unittest.TestCase):
         self.assertEqual(observations(vp, VP_TIME), [])
         self.assertEqual(observations({}, VP_TIME), [])
 
+    def test_observations_tolerates_wrong_types(self):
+        good = VP["entity"][0]
+        bad_label = json.loads(json.dumps(good))
+        bad_label["vehicle"]["vehicle"]["label"] = 5
+        bad_trip = json.loads(json.dumps(good))
+        bad_trip["vehicle"]["trip"] = "x"
+        bad_status = json.loads(json.dumps(good))
+        bad_status["vehicle"]["currentStatus"] = ["INCOMING_AT"]
+        vp = {"header": VP["header"],
+              "entity": ["junk", 7, None, {"vehicle": "x"}, bad_label, bad_trip, bad_status, good]}
+        self.assertEqual(observations(vp, VP_TIME), [("51200|23525", "6")])
+        self.assertEqual(observations({"header": "x", "entity": [good]}, VP_TIME), [])
+        self.assertEqual(observations({"header": VP["header"], "entity": "x"}, VP_TIME), [])
+        self.assertEqual(observations([], VP_TIME), [])
+
 
 class MergeTest(unittest.TestCase):
     def test_merge_dedups_same_day(self):

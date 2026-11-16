@@ -225,9 +225,18 @@ class AppController extends ChangeNotifier {
   /// only fetched when some train is this close.
   static const positionsWithinMinutes = 5;
 
+  /// Renfe republishes positions every ~30 s with no compression; at busy stations a train is almost
+  /// always near, so cap the download at once a minute (a platform is known 1–3 min ahead).
+  static const positionsMinInterval = Duration(seconds: 60);
+  tz.TZDateTime? _positionsAt;
+
   Future<void> _pollRt() async {
+    final now = _clock();
+    final last = _positionsAt;
     final wantPositions = _positionsClient != null &&
+        (last == null || now.difference(last).isNegative || now.difference(last) >= positionsMinInterval) &&
         (board?.departures.any((d) => d.minutes <= positionsWithinMinutes) ?? false);
+    if (wantPositions) _positionsAt = now;
     await Future.wait([
       () async {
         try {

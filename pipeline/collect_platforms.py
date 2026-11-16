@@ -45,18 +45,25 @@ def observations(vp: dict, now: datetime) -> list:
         except (TypeError, ValueError):
             return False
 
-    if not isinstance(vp, dict) or not fresh((vp.get("header") or {}).get("timestamp")):
+    def obj(x) -> dict:
+        return x if isinstance(x, dict) else {}
+
+    def text(x) -> str:
+        return x if isinstance(x, str) else ""
+
+    if not isinstance(vp, dict) or not fresh(obj(vp.get("header")).get("timestamp")):
         return []
+    entities = vp.get("entity")
     out = []
-    for e in vp.get("entity") or []:
-        v = (e or {}).get("vehicle") or {}
-        stop = v.get("stopId")
-        if v.get("currentStatus") not in STATUSES or not stop or stop == "00000":
+    for e in entities if isinstance(entities, list) else []:
+        v = obj(obj(e).get("vehicle"))  # Renfe's shape may change: wrong types are skipped, never raised
+        stop = text(v.get("stopId"))
+        if text(v.get("currentStatus")) not in STATUSES or not stop or stop == "00000":
             continue
         if "timestamp" in v and not fresh(v["timestamp"]):
             continue  # a vehicle frozen in an otherwise fresh feed
-        parsed = parse_label((v.get("vehicle") or {}).get("label", ""))
-        train = train_number((v.get("trip") or {}).get("tripId", ""))
+        parsed = parse_label(text(obj(v.get("vehicle")).get("label")))
+        train = train_number(text(obj(v.get("trip")).get("tripId")))
         if parsed and parsed[2] and train:
             out.append((f"{stop}|{train}", parsed[2]))
     return out
