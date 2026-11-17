@@ -209,6 +209,9 @@ void main() {
   });
 
   testWidgets('station picker groups by nucleo and changes station', (tester) async {
+    tester.view.physicalSize = const Size(800, 1400); // both groups on screen below the search field
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     location.immediate = null;
     final c = await make();
     await tester.runAsync(() async {

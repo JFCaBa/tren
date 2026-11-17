@@ -52,7 +52,7 @@ Andén es una app independiente y no oficial, sin relación con Renfe. Usa los d
 
 ## Novedades de esta versión
 
-**1.1:** Ahora muestra la vía: en vivo cuando Renfe la publica y la habitual de cada tren.
+**1.1:** Ahora muestra la vía: en vivo cuando Renfe la publica y la habitual de cada tren. Y puedes buscar cualquier estación por su nombre.
 
 **1.0:** Primera versión de Andén.
 
