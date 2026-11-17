@@ -15,7 +15,9 @@
 - Prueba cerrada "Alpha": versión 9 (1.0.0), España, lista "Beta testers" (22 personas, la misma de LocalGuideApp), feedback en la página de soporte.
 - **Enviada a revisión el 16-11-2026.** La publicación gestionada está desactivada: al aprobarse, la prueba se activa sola.
 
-- **Versión 1.1.0 (11)**: AAB en `app/build/app/outputs/bundle/release/app-release.aab` (firmado). Lo sube el usuario (> 10 MB) a la prueba cerrada "Alpha" cuando Google apruebe la 1.0; confirmar antes de enviar a revisión.
+- **Versión 1.1.0 (11)**: subida a la prueba cerrada "Alpha" con notas es-ES y **enviada a revisión el 17-11-2026** (la 9 ya no se incluye).
+- Probadores: listas "Alpha testers" (5) y "Beta testers" (22), 23 direcciones distintas.
+  Enlace web: https://play.google.com/apps/testing/com.jfcaba.proximotren
 
 ### Después de la aprobación
 
