@@ -6,7 +6,7 @@
 - Versión 1.0: ficha completa, capturas de iPhone 6,3" (1206×2622; App Store Connect ya no acepta 6,9" como tamaño principal) y privacidad "Datos no recogidos".
 - Versión 1.0 **enviada a revisión** por el usuario el 16-11-2026. Publicación manual tras la aprobación.
 - 16-11-2026: Apple pidió información (guideline 2.1). Respondido con las notas de `review-notes-en.md` y una grabación en iPhone, notas copiadas en App Review Information y **reenviada**: Waiting for Review.
-- **Build 10 = versión 1.1.0 (vía)** subido a App Store Connect: disponible en TestFlight cuando se procese. Se envía a revisión como versión 1.1 cuando la 1.0 esté aprobada (con confirmación del usuario). Novedades en `listing-es.md`.
+- **Build 11 = versión 1.1.0 (vía + búsqueda de estaciones por nombre)** subido a App Store Connect el 17-11-2026 (sustituye al build 10). Se envía a revisión como versión 1.1 cuando la 1.0 esté aprobada (con confirmación del usuario). Novedades en `listing-es.md`. Notas para el revisor: añadir el dataset `ubicacion-vehiculos` (CC BY 4.0) que usa la vía en vivo.
 
 ## Google Play (Android)
 
@@ -15,7 +15,7 @@
 - Prueba cerrada "Alpha": versión 9 (1.0.0), España, lista "Beta testers" (22 personas, la misma de LocalGuideApp), feedback en la página de soporte.
 - **Enviada a revisión el 16-11-2026.** La publicación gestionada está desactivada: al aprobarse, la prueba se activa sola.
 
-- **Versión 1.1.0 (10)**: AAB en `app/build/app/outputs/bundle/release/app-release.aab` (firmado). Lo sube el usuario (> 10 MB) a la prueba cerrada "Alpha" cuando Google apruebe la 1.0; confirmar antes de enviar a revisión.
+- **Versión 1.1.0 (11)**: AAB en `app/build/app/outputs/bundle/release/app-release.aab` (firmado). Lo sube el usuario (> 10 MB) a la prueba cerrada "Alpha" cuando Google apruebe la 1.0; confirmar antes de enviar a revisión.
 
 ### Después de la aprobación
 
