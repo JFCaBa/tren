@@ -1,4 +1,4 @@
-# Andén: estado en las tiendas (actualizado 16-11-2026)
+# Andén: estado en las tiendas (actualizado 18-11-2026)
 
 ## App Store (iOS)
 
@@ -6,7 +6,7 @@
 - Versión 1.0: ficha completa, capturas de iPhone 6,3" (1206×2622; App Store Connect ya no acepta 6,9" como tamaño principal) y privacidad "Datos no recogidos".
 - Versión 1.0 **enviada a revisión** por el usuario el 16-11-2026. Publicación manual tras la aprobación.
 - 16-11-2026: Apple pidió información (guideline 2.1). Respondido con las notas de `review-notes-en.md` y una grabación en iPhone, notas copiadas en App Review Information y **reenviada**: Waiting for Review.
-- **Build 11 = versión 1.1.0 (vía + búsqueda de estaciones por nombre)** subido a App Store Connect el 17-11-2026 (sustituye al build 10). Se envía a revisión como versión 1.1 cuando la 1.0 esté aprobada (con confirmación del usuario). Novedades en `listing-es.md`. Notas para el revisor: añadir el dataset `ubicacion-vehiculos` (CC BY 4.0) que usa la vía en vivo.
+- **Build 12 = versión 1.1.0 (vía + búsqueda de estaciones por nombre + más trenes con scroll / «Ver más»)** subido a App Store Connect el 18-11-2026 (sustituye al build 11). Se envía a revisión como versión 1.1 cuando la 1.0 esté aprobada (con confirmación del usuario). Novedades en `listing-es.md`. Notas para el revisor: añadir el dataset `ubicacion-vehiculos` (CC BY 4.0) que usa la vía en vivo.
 
 ## Google Play (Android)
 
