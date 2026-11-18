@@ -37,6 +37,30 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _toggle(String key) => setState(() => _expanded = _expanded == key ? null : key);
 
+  /// Pixels from the end of the list at which more trains are added.
+  static const _loadMoreWithin = 300.0;
+
+  /// A page was added and the list has not been laid out with it yet.
+  bool _loadPending = false;
+
+  late final ScrollController _scroll = ScrollController()..addListener(_onScroll);
+
+  /// Near the end of the list: add more trains (cheap, computed from the loaded schedule).
+  /// One page per frame: the scroll extents only grow once the new rows are laid out.
+  void _onScroll() {
+    final p = _scroll.position;
+    if (_loadPending || !p.hasContentDimensions || p.extentAfter >= _loadMoreWithin) return;
+    _loadPending = true;
+    controller.loadMore();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadPending = false);
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
   Future<void> _openPrivacy(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -87,6 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return RefreshIndicator(
       onRefresh: c.retry,
       child: ListView(
+        controller: _scroll,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         physics: const AlwaysScrollableScrollPhysics(),
         children: [

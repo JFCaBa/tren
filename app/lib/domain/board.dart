@@ -69,6 +69,7 @@ class Board {
     required this.rtStale,
     required this.feedStale,
     required this.feedCoversToday,
+    this.hasMore = false,
   });
 
   /// Next trains from the station, by estimated time, after applying the destination filter.
@@ -82,6 +83,9 @@ class Board {
   final bool rtStale;
   final bool feedStale;
   final bool feedCoversToday;
+
+  /// More trains than [departures] are left in the feed window (a larger limit would show them).
+  final bool hasMore;
 }
 
 String _iso(int y, int m, int d) =>
@@ -203,6 +207,7 @@ Board computeBoard(
     missingNucleos: [for (final n in requiredNucleos) if (!have.contains(n)) n],
     rtStale: !rtFresh,
     feedStale: feeds.any((f) => now.difference(f.generatedAt) > _feedMaxAge),
+    hasMore: candidates.length > shown.length,
     feedCoversToday: feeds.isNotEmpty && feeds.every((f) => f.validFrom.compareTo(today) <= 0 && today.compareTo(f.validTo) <= 0),
   );
 }

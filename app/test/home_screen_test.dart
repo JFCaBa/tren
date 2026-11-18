@@ -95,6 +95,16 @@ void main() {
     expect(find.text('→ València Nord'), findsWidgets);
   });
 
+  testWidgets('scrolling to the end shows more trains', (tester) async {
+    server.feed40Override = manyTrainsFeed(30);
+    final c = await started(tester);
+    await show(tester, c);
+    expect(c.board!.departures, hasLength(8));
+    await tester.drag(find.byType(ListView), const Offset(0, -3000));
+    await tester.pumpAndSettle();
+    expect(c.board!.departures.length, greaterThan(8));
+  });
+
   testWidgets('line badge uses the feed color', (tester) async {
     final c = await started(tester);
     await show(tester, c);

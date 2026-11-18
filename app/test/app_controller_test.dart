@@ -353,6 +353,22 @@ void main() {
     expect(c.retrying, isFalse);
   });
 
+  test('loadMore adds a page while the schedule has more, filters reset it', () async {
+    server.feed40Override = manyTrainsFeed(20);
+    final c = await startedAt(nearSilla);
+    expect(c.board!.departures, hasLength(8));
+    c.loadMore();
+    expect(c.board!.departures, hasLength(16));
+    c.loadMore();
+    expect(c.board!.departures, hasLength(20));
+    expect(c.board!.hasMore, isFalse);
+    c.loadMore();
+    expect(c.limit, 24); // no growth once everything is shown
+    c.toggleFilter('Gandia');
+    expect(c.limit, 8);
+    expect(c.board!.departures, hasLength(8));
+  });
+
   test('filters persist per station', () async {
     final c = await startedAt(nearSilla);
     c.toggleFilter('Gandia');

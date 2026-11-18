@@ -20,6 +20,9 @@ const _lastStationKey = 'last_station';
 String _filtersKey(String stopId) => 'filters_$stopId';
 const rtInterval = Duration(seconds: 30);
 
+/// Trains shown at first, and added each time the list is scrolled to its end.
+const pageSize = 8;
+
 typedef PeriodicTimerFactory = Timer Function(Duration, void Function(Timer));
 
 tz.TZDateTime madridNow() => tz.TZDateTime.now(tz.getLocation('Europe/Madrid'));
@@ -60,6 +63,9 @@ class AppController extends ChangeNotifier {
 
   /// Destinations the list is filtered by; empty = all.
   Set<String> filters = {};
+
+  /// How many trains the list shows; grows with [loadMore], back to [pageSize] on a new station or filter.
+  int limit = pageSize;
   double? distanceMeters;
   bool manualStation = false;
   Board? board;
@@ -178,6 +184,13 @@ class AppController extends ChangeNotifier {
 
   void clearFilters() => _setFilters({});
 
+  /// Show [pageSize] more trains, if the schedule has them.
+  void loadMore() {
+    if (board?.hasMore != true) return;
+    limit += pageSize;
+    _recompute();
+  }
+
   @override
   void dispose() {
     _disposed = true;
@@ -187,6 +200,7 @@ class AppController extends ChangeNotifier {
 
   void _setFilters(Set<String> next) {
     filters = next;
+    limit = pageSize;
     final s = station;
     if (s != null) _prefs.setString(_filtersKey(s.id), jsonEncode(next.toList()..sort()));
     _recompute();
@@ -306,7 +320,10 @@ class AppController extends ChangeNotifier {
     _stationProvisional = provisional;
     station = s;
     _prefs.setString(_lastStationKey, s.id);
-    if (!same) filters = _savedFilters(s.id);
+    if (!same) {
+      filters = _savedFilters(s.id);
+      limit = pageSize;
+    }
     feeds = const [];
     _feedsSettled = false;
     final gen = ++_stationGen;
@@ -375,6 +392,7 @@ class AppController extends ChangeNotifier {
         ? null
         : computeBoard(feeds, s.id, _clock(), rt,
             destinations: filters,
+            limit: limit,
             requiredNucleos: s.nucleos,
             livePlatforms: platformsAt(positions, s.id, _clock()));
     if (!_disposed) notifyListeners();

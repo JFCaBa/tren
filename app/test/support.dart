@@ -16,6 +16,7 @@ http.Response okJson(String body, {Map<String, String> headers = const {}}) =>
 class FakeServer {
   bool feedFails = false; // every jfcaba.github.io request fails
   String? indexOverride; // served instead of fixtures/index.json
+  String? feed40Override; // served instead of fixtures/feed_40.json
   final failing = <String>{}; // e.g. 'feeds/10.json'
   final holds = <String, Completer<void>>{}; // path -> gate
   String? positionsBody; // served at gtfsrt.renfe.com/vehicle_positions.json (404 when null)
@@ -49,7 +50,7 @@ class FakeServer {
     if (feedFails || failing.contains(path)) throw const SocketException('offline');
     return switch (path) {
       'index.json' => okJson(indexOverride ?? fixture('index.json')),
-      'feeds/40.json' => okJson(fixture('feed_40.json')),
+      'feeds/40.json' => okJson(feed40Override ?? fixture('feed_40.json')),
       'feeds/10.json' => okJson(fixture('feed_10.json')),
       _ => http.Response('not found', 404),
     };
@@ -126,4 +127,24 @@ String positionsJson(String tripId, String stopId, String platform, DateTime at)
       },
     ],
   });
+}
+
+/// feed_40.json with [n] Gandia trains at Silla every 5 min from 18:05 (T1… replaced).
+String manyTrainsFeed(int n) {
+  final d = jsonDecode(fixture('feed_40.json')) as Map<String, dynamic>;
+  d['trips'] = [
+    for (var i = 0; i < n; i++)
+      {
+        'id': 'M$i',
+        'line': 'C1',
+        'dest': 'Gandia',
+        'dates': ['2026-11-15'],
+        'times': [
+          ['65000', 64800 + 300 * i],
+          ['64200', 65100 + 300 * i],
+          ['69110', 67800 + 300 * i],
+        ],
+      },
+  ];
+  return jsonEncode(d);
 }

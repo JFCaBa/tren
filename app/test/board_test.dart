@@ -68,6 +68,14 @@ void main() {
     expect(b.departures.first.minutes, 10);
     expect(b.departures.first.dest, 'Gandia');
     expect(b.departures.first.line, 'C1');
+    expect(b.hasMore, isTrue);
+  });
+
+  test('a larger limit shows more trains, hasMore false once all are shown', () {
+    final trips = [for (var i = 0; i < 10; i++) out('o$i', hm(18, 10 + i))];
+    final b = computeBoard([feedOf(trips)], '64200', now(), null, limit: 16);
+    expect(b.departures, hasLength(10));
+    expect(b.hasMore, isFalse);
   });
 
   test('filters by destinations (OR)', () {
