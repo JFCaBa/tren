@@ -105,6 +105,25 @@ void main() {
     expect(c.board!.departures.length, greaterThan(8));
   });
 
+  testWidgets('Ver más adds trains and hides once all are shown', (tester) async {
+    server.feed40Override = manyTrainsFeed(12);
+    final c = await started(tester);
+    await tester.binding.setSurfaceSize(const Size(800, 3000)); // everything fits: no scroll
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await show(tester, c);
+    expect(c.board!.departures, hasLength(8));
+    await tester.tap(find.text('Ver más'));
+    await tester.pump();
+    expect(c.board!.departures, hasLength(12));
+    expect(find.text('Ver más'), findsNothing);
+  });
+
+  testWidgets('no Ver más when every train is shown', (tester) async {
+    final c = await started(tester);
+    await show(tester, c);
+    expect(find.text('Ver más'), findsNothing);
+  });
+
   testWidgets('line badge uses the feed color', (tester) async {
     final c = await started(tester);
     await show(tester, c);

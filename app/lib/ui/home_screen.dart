@@ -175,6 +175,8 @@ class _HomeScreenState extends State<HomeScreen> {
               else
                 for (final d in board.departures)
                   DepartureRow(d, expanded: d.id == _expanded, onTap: () => _toggle(d.id)),
+              // Scrolling near the end also loads more; the button covers lists that fit without scrolling.
+              if (board.hasMore) Center(child: TextButton(onPressed: c.loadMore, child: const Text('Ver más'))),
             ],
           ],
           const SizedBox(height: 24),
