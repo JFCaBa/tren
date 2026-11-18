@@ -16,6 +16,10 @@
 - **Enviada a revisión el 16-11-2026.** La publicación gestionada está desactivada: al aprobarse, la prueba se activa sola.
 
 - **Versión 1.1.0 (11)**: subida a la prueba cerrada "Alpha" con notas es-ES y **enviada a revisión el 17-11-2026** (la 9 ya no se incluye).
+- La 11 se aprobó y publicó en Alpha el 17-11-2026 (publicación gestionada desactivada).
+- **Versión 1.1.0 (13)** (18-11-2026): más trenes con scroll / «Ver más» + `screen.portrait` no obligatoria (+7 tablets, +3 TV).
+  AAB subido por el usuario, notas es-ES, vista previa "Ready to release"; guardada en Publishing overview, **sin enviar**:
+  el usuario pulsa "Submit 1 change for review".
 - Probadores: listas "Alpha testers" (5) y "Beta testers" (22), 23 direcciones distintas.
   Enlace web: https://play.google.com/apps/testing/com.jfcaba.proximotren
 
