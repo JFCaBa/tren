@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="5244" height="2950" viewBox="0 0 5244 2950">
+<defs>
+  <radialGradient id="bg" cx="50%" cy="40%" r="75%">
+    <stop offset="0" stop-color="#14897F"/><stop offset="1" stop-color="#0B4F4A"/>
+  </radialGradient>
+  <filter id="sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="40" stdDeviation="50" flood-color="#032A27" flood-opacity="0.45"/></filter>
+</defs>
+<rect width="5244" height="2950" fill="url(#bg)"/>
+<!-- the icon's ring, huge, as atmosphere -->
+<circle cx="2622" cy="1141" r="1250" fill="none" stroke="#0E6A63" stroke-width="150"/>
+<path d="M2622 -109 A1250 1250 0 1 1 1539 1766" fill="none" stroke="#2DD4BF" stroke-opacity="0.35" stroke-width="150" stroke-linecap="round"/>
+<circle cx="2622" cy="1141" r="1900" fill="none" stroke="#0E6A63" stroke-opacity="0.5" stroke-width="60"/>
+<!-- board card inside the art safe area (1921,660 1402x962) -->
+<g filter="url(#sh)">
+  <rect x="1971" y="700" width="1302" height="882" rx="64" fill="#FFFFFF"/>
+</g>
+<g font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif">
+  <text x="2041" y="806" font-size="54" font-weight="700" fill="#0F766E">Madrid-Atocha Cercanías</text>
+  <line x1="2041" y1="850" x2="3203" y2="850" stroke="#E2E8F0" stroke-width="4"/>
+  <!-- row 1 -->
+  <rect x="2041" y="890" width="150" height="88" rx="16" fill="#F2C200"/>
+  <text x="2116" y="953" font-size="56" font-weight="700" fill="#111827" text-anchor="middle">C-5</text>
+  <text x="2225" y="953" font-size="64" fill="#111827">→ Fuenlabrada</text>
+  <text x="3203" y="955" font-size="76" font-weight="800" fill="#111827" text-anchor="end">3 min</text>
+  <text x="2225" y="1028" font-size="46" font-weight="700" fill="#0F766E">Vía 2</text>
+  <text x="3203" y="1028" font-size="44" fill="#64748B" text-anchor="end">10:32</text>
+  <line x1="2041" y1="1075" x2="3203" y2="1075" stroke="#E2E8F0" stroke-width="4"/>
+  <!-- row 2 -->
+  <rect x="2041" y="1115" width="150" height="88" rx="16" fill="#7B3FA0"/>
+  <text x="2116" y="1178" font-size="56" font-weight="700" fill="#FFFFFF" text-anchor="middle">C-3</text>
+  <text x="2225" y="1178" font-size="64" fill="#111827">→ Aranjuez</text>
+  <text x="3203" y="1180" font-size="76" font-weight="800" fill="#111827" text-anchor="end">7 min</text>
+  <text x="2225" y="1253" font-size="46" font-weight="700" fill="#0F766E">Vía 5</text>
+  <text x="3203" y="1253" font-size="44" fill="#64748B" text-anchor="end">10:36</text>
+  <line x1="2041" y1="1300" x2="3203" y2="1300" stroke="#E2E8F0" stroke-width="4"/>
+  <!-- row 3 -->
+  <rect x="2041" y="1340" width="150" height="88" rx="16" fill="#1D4E9E"/>
+  <text x="2116" y="1403" font-size="56" font-weight="700" fill="#FFFFFF" text-anchor="middle">C-4</text>
+  <text x="2225" y="1403" font-size="64" fill="#111827">→ Parla</text>
+  <text x="3203" y="1405" font-size="76" font-weight="800" fill="#111827" text-anchor="end">12 min</text>
+  <text x="2225" y="1478" font-size="46" fill="#64748B">vía 4 · habitual</text>
+  <text x="3203" y="1478" font-size="44" fill="#64748B" text-anchor="end">10:41</text>
+</g>
+</svg>
