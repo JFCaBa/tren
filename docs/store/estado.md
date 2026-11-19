@@ -8,6 +8,8 @@
 - 16-11-2026: Apple pidió información (guideline 2.1). Respondido con las notas de `review-notes-en.md` y una grabación en iPhone, notas copiadas en App Review Information y **reenviada**: Waiting for Review.
 - **Build 12 = versión 1.1.0 (vía + búsqueda de estaciones por nombre + más trenes con scroll / «Ver más»)** subido a App Store Connect el 18-11-2026 (sustituye al build 11). Se envía a revisión como versión 1.1 cuando la 1.0 esté aprobada (con confirmación del usuario). Novedades en `listing-es.md`. Notas para el revisor: añadir el dataset `ubicacion-vehiculos` (CC BY 4.0) que usa la vía en vivo.
 
+- 19-11-2026: la 1.0 ya está en la App Store. **Versión 1.1.0 preparada** en App Store Connect con el build 12: descripción nueva (vía, búsqueda, «Ver más», FUENTE data.renfe.com, aviso "ni con ningún organismo público"), novedades, notas del revisor 1.1 (`review-notes-en.md`, sin grabación) y **publicación manual**. Falta que el usuario pulse "Add for Review"; se publica la semana del 23-11-2026.
+
 ## Google Play (Android)
 
 - Cuenta "Jose Catala" (jfcaba68@). La otra cuenta personal (jfca68@) está cerrada desde 2024.

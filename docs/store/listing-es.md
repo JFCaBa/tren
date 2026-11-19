@@ -34,8 +34,9 @@ Andén responde a una sola pregunta: ¿cuánto falta para mi tren?
 Abres la app y ves la estación de Cercanías más cercana con los próximos trenes, en los dos sentidos, ordenados por hora. Si un tren va con retraso, lo verás al momento y con la hora ya corregida.
 
 QUÉ HACE
-• Detecta tu estación más cercana con la ubicación. También puedes elegirla a mano.
-• Muestra los 8 próximos trenes, con línea, destino y minutos que faltan.
+• Detecta tu estación más cercana con la ubicación. También puedes buscarla por su nombre.
+• Muestra los próximos trenes, con línea, destino y minutos que faltan. Baja hasta el final de la lista o toca «Ver más» para ver más trenes.
+• La vía de cada tren: en vivo cuando Renfe la publica y, si no, la habitual.
 • Retrasos y cancelaciones en tiempo real. Cuando no hay dato en vivo, indica la hora prevista.
 • Filtros por destino: marca adónde vas y Andén lo recordará para esa estación.
 • Toca un tren para ver todas las paradas que le quedan, con su hora.
@@ -48,7 +49,10 @@ PRIVACIDAD
 Sin cuentas, sin anuncios y sin analítica. La ubicación se usa solo en tu teléfono para encontrar la estación más cercana y no se envía a ningún sitio.
 
 AVISO
-Andén es una app independiente y no oficial, sin relación con Renfe. Usa los datos abiertos que publica Renfe (horarios y tiempo real); pueden contener errores o retrasos en su actualización.
+Andén es una app independiente y no oficial, sin relación con Renfe ni con ningún organismo público. Usa los datos abiertos que publica Renfe (horarios y tiempo real); pueden contener errores o retrasos en su actualización.
+
+FUENTE
+Datos abiertos de Renfe (licencia CC BY 4.0): https://data.renfe.com/
 
 ## Novedades de esta versión
 
