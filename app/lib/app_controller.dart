@@ -17,6 +17,13 @@ import 'domain/nearest.dart';
 import 'location.dart';
 
 const _lastStationKey = 'last_station';
+const _recentKey = 'recent_stations';
+
+/// Recent stations offered as shortcuts, besides the current one.
+const recentShown = 3;
+
+/// Stations remembered, so a few that leave the index still leave [recentShown] to offer.
+const _recentKept = 10;
 String _filtersKey(String stopId) => 'filters_$stopId';
 const rtInterval = Duration(seconds: 30);
 
@@ -100,6 +107,29 @@ class AppController extends ChangeNotifier {
   tz.TZDateTime now() => _clock();
 
   String? nucleoName(String id) => index?.nucleo(id)?.name;
+
+  /// Stations shown, newest first (ids, current included).
+  late List<String> _recentIds = _loadRecent();
+
+  List<String> _loadRecent() {
+    try {
+      return (jsonDecode(_prefs.getString(_recentKey) ?? '[]') as List).cast<String>();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Up to [recentShown] stations shown before the current one, newest first.
+  List<IndexStop> get recentStations => [
+        for (final id in _recentIds)
+          if (id != station?.id) ?_stopById(id),
+      ].take(recentShown).toList();
+
+  void _remember(String stopId) {
+    if (_recentIds.firstOrNull == stopId) return;
+    _recentIds = [stopId, ..._recentIds.where((id) => id != stopId)].take(_recentKept).toList();
+    _prefs.setString(_recentKey, jsonEncode(_recentIds));
+  }
 
   /// First load. Safe to call once; later calls return the same future.
   Future<void> start() => _starting ??= _start();
@@ -313,6 +343,7 @@ class AppController extends ChangeNotifier {
       station = s;
       if (_stationProvisional && !provisional) {
         _stationProvisional = false; // confirmed by GPS or by the user: now download it
+        _remember(s.id);
         _feedsLoad = _loadFeeds(s, ++_stationGen);
       }
       return;
@@ -320,6 +351,7 @@ class AppController extends ChangeNotifier {
     _stationProvisional = provisional;
     station = s;
     _prefs.setString(_lastStationKey, s.id);
+    if (!provisional) _remember(s.id);
     if (!same) {
       filters = _savedFilters(s.id);
       limit = pageSize;

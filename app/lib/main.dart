@@ -58,7 +58,7 @@ class _ProximoTrenAppState extends State<ProximoTrenApp> with WidgetsBindingObse
 
   @override
   Widget build(BuildContext context) {
-    const seed = Color(0xFF7AB3DE);
+    const seed = Color(0xFF0F766E); // the icon's teal
     return MaterialApp(
       title: 'Andén',
       debugShowCheckedModeBanner: false,

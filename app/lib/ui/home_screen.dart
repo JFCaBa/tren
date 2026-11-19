@@ -108,6 +108,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     final theme = Theme.of(context);
     final board = c.board;
+    // The first train that runs goes in the large card; canceled ones stay rows.
+    final next = board == null ? null : nextTrainIndex(board.departures);
+    // With a destination filter a long gap is only that destination's: not worth calling out.
+    bool gapAt(int i) => c.filters.isEmpty && startsAfterGap(board!.departures, i);
     return RefreshIndicator(
       onRefresh: c.retry,
       child: ListView(
@@ -149,6 +153,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           overflow: TextOverflow.ellipsis),
                       Text(c.station!.nucleos.map((n) => c.nucleoName(n) ?? n).join(' · '),
                           style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                      if (board != null) ?_liveStatus(context, board),
                     ]),
                   ),
                   if (c.distanceMeters != null) Text(_distance(c.distanceMeters!), style: theme.textTheme.bodyMedium),
@@ -156,6 +161,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 ]),
               ),
             ),
+            if (c.recentStations.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Wrap(spacing: 6, runSpacing: 6, children: [
+                  for (final r in c.recentStations)
+                    ActionChip(
+                      label: Text(shortStopName(r.name)),
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => c.selectStation(r.id),
+                    ),
+                ]),
+              ),
             if (board == null)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 48),
@@ -169,18 +186,30 @@ class _HomeScreenState extends State<HomeScreen> {
                 onToggle: c.toggleFilter,
                 onClear: c.clearFilters,
               ),
-              const Divider(),
+              if (next != null) ...[
+                const SizedBox(height: 12),
+                if (gapAt(next)) _gapNote(context, board.departures[next]),
+                NextTrainCard(board.departures[next],
+                    expanded: board.departures[next].id == _expanded,
+                    onTap: () => _toggle(board.departures[next].id)),
+                const SizedBox(height: 4),
+              ] else
+                const Divider(),
               if (board.departures.isEmpty)
                 const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Sin trenes próximos'))
               else
-                for (final d in board.departures)
-                  DepartureRow(d, expanded: d.id == _expanded, onTap: () => _toggle(d.id)),
+                for (var i = 0; i < board.departures.length; i++)
+                  if (i != next) ...[
+                    if (gapAt(i)) _gapNote(context, board.departures[i]),
+                    DepartureRow(board.departures[i],
+                        expanded: board.departures[i].id == _expanded, onTap: () => _toggle(board.departures[i].id)),
+                  ],
               // Scrolling near the end also loads more; the button covers lists that fit without scrolling.
               if (board.hasMore) Center(child: TextButton(onPressed: c.loadMore, child: const Text('Ver más'))),
             ],
           ],
           const SizedBox(height: 24),
-          Text(_footer(), textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
+          Text('Datos: Renfe', textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
           Center(
             child: TextButton(
               onPressed: () => _openPrivacy(context),
@@ -199,14 +228,40 @@ class _HomeScreenState extends State<HomeScreen> {
           _Banner('Horario incompleto: falta ${b.missingNucleos.map((n) => controller.nucleoName(n) ?? n).join(', ')}',
               onRetry: controller.retrying ? null : controller.retry),
         if (!b.feedCoversToday || b.feedStale) const _Banner('El horario puede estar desactualizado'),
-        if (b.rtStale && controller.rtAttempted) const _Banner('Sin tiempo real: se muestran horas previstas'),
       ];
 
-  String _footer() {
+  /// "En vivo · 10:39:12" (green dot) or "Sin tiempo real" (hollow); nothing before the first poll answers.
+  Widget? _liveStatus(BuildContext context, Board b) {
+    final theme = Theme.of(context);
     final rt = controller.rt;
-    if (rt == null || controller.board?.rtStale != false) return 'Datos: Renfe';
-    final t = tz.TZDateTime.from(rt.fetchedAt, controller.now().location);
-    return 'actualizado a las ${hhmm(t)}:${t.second.toString().padLeft(2, '0')} · Datos: Renfe';
+    final live = !b.rtStale && rt != null;
+    if (!live && !controller.rtAttempted) return null;
+    final String text;
+    if (live) {
+      final t = tz.TZDateTime.from(rt.fetchedAt, controller.now().location);
+      text = 'En vivo · ${hhmm(t)}:${t.second.toString().padLeft(2, '0')}';
+    } else {
+      text = 'Sin tiempo real · horas previstas';
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(children: [
+        Icon(live ? Icons.circle : Icons.circle_outlined,
+            size: 8, color: live ? goodColor(context) : theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 6),
+        Text(text, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+      ]),
+    );
+  }
+
+  /// Called out before a train that comes after a long stretch without any (nights, small stations).
+  Widget _gapNote(BuildContext context, Departure d) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 6),
+      child: Text('Sin trenes hasta las ${hhmm(d.estimated)}',
+          style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+    );
   }
 
   static String _distance(double m) =>

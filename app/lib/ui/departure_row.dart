@@ -47,26 +47,146 @@ class LineBadge extends StatelessWidget {
       );
 }
 
+/// A gap with no trains this long (minutes, from now for the first train) is called out.
+const gapMinutes = 90;
+
+/// The train at [i] comes after [gapMinutes] or more without trains.
+bool startsAfterGap(List<Departure> ds, int i) => ds[i].minutes - (i == 0 ? 0 : ds[i - 1].minutes) >= gapMinutes;
+
+/// The train for the large card: the first one that runs (a canceled one stays a row).
+int? nextTrainIndex(List<Departure> ds) {
+  final i = ds.indexWhere((d) => !d.canceled);
+  return i < 0 ? null : i;
+}
+
+/// Whole minutes of delay (rounded), or null when not live or the clock time does not change.
+int? delayMinutes(Departure d) {
+  final s = d.delaySec;
+  if (s == null || d.canceled || hhmm(d.scheduled) == hhmm(d.estimated)) return null;
+  final m = (s / 60).round();
+  return m == 0 ? null : m;
+}
+
+/// From this many minutes late a train is marked in amber (1–2 min are routine on Cercanías).
+const lateMinutes = 3;
+
+/// The train is late enough to mark.
+bool isLate(Departure d) => (delayMinutes(d) ?? 0) >= lateMinutes;
+
+/// Amber for late trains, readable on both themes.
+Color lateColor(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark ? const Color(0xFFF0A63A) : const Color(0xFFB86E00);
+
+/// Green for early trains and for "en vivo".
+Color goodColor(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark ? const Color(0xFF4FC27F) : const Color(0xFF1F8A4C);
+
+/// The platform as a pill: filled when Renfe reports it live, outlined when only usual.
+class PlatformPill extends StatelessWidget {
+  const PlatformPill(this.d, {super.key, this.large = false});
+  final Departure d;
+
+  /// "Vía 2" instead of just "2".
+  final bool large;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = d.livePlatform ?? d.usualPlatform;
+    if (p == null) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    final live = d.livePlatform != null;
+    return Semantics(
+      label: platformText(d),
+      excludeSemantics: true,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: large ? 12 : 8, vertical: large ? 3 : 1),
+        decoration: BoxDecoration(
+          color: live ? scheme.onSurface : null,
+          border: live ? null : Border.all(color: scheme.outline, width: 1.5),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          large ? 'Vía $p' : p,
+          style: TextStyle(
+            color: live ? scheme.surface : scheme.onSurfaceVariant,
+            fontWeight: live ? FontWeight.w700 : FontWeight.w600,
+            fontSize: large ? 15 : 12,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "ahora" / "N min" in bold (amber when late), or "Cancelado" in red.
+class _Wait extends StatelessWidget {
+  const _Wait(this.d, {this.style});
+  final Departure d;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (d.canceled) {
+      return Text('Cancelado', style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.error));
+    }
+    return Text(
+      formatWait(d.minutes),
+      style: (style ?? theme.textTheme.titleLarge)?.copyWith(
+        fontWeight: FontWeight.w700,
+        color: isLate(d) ? lateColor(context) : null,
+      ),
+    );
+  }
+}
+
+/// Clock time: the scheduled one struck out beside the new one when it moved; a hollow
+/// circle when there is no real time for this train ("previsto").
+class _Time extends StatelessWidget {
+  const _Time(this.d);
+  final Departure d;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant);
+    final delay = delayMinutes(d);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (!d.live) ...[
+          Semantics(
+            label: 'previsto',
+            child: Icon(Icons.circle_outlined, size: 9, color: theme.colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(width: 4),
+        ],
+        if (delay != null) ...[
+          Text(hhmm(d.scheduled), style: muted?.copyWith(decoration: TextDecoration.lineThrough)),
+          const SizedBox(width: 4),
+          Text(
+            hhmm(d.estimated),
+            style: muted?.copyWith(
+              color: delay < 0 ? goodColor(context) : (isLate(d) ? lateColor(context) : null),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ] else
+          Text(hhmm(d.estimated), style: muted?.copyWith(decoration: d.canceled ? TextDecoration.lineThrough : null)),
+      ],
+    );
+  }
+}
+
 class DepartureRow extends StatelessWidget {
   const DepartureRow(this.d, {super.key, this.expanded = false, this.onTap});
   final Departure d;
   final bool expanded;
   final VoidCallback? onTap;
 
-  String? get _delayText {
-    final s = d.delaySec;
-    if (s == null) return null;
-    final m = (s / 60).round();
-    if (m == 0) return null;
-    return m > 0 ? '(+$m)' : '(−${-m})';
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final muted = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant);
-    final delay = _delayText;
-    final platform = platformText(d);
     final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -74,45 +194,17 @@ class DepartureRow extends StatelessWidget {
           LineBadge(d.line, d.color),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('→ ${shortStopName(d.dest)}', style: theme.textTheme.bodyLarge, maxLines: 2, overflow: TextOverflow.ellipsis),
-                if (platform != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      platform,
-                      style: d.livePlatform != null
-                          ? theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700)
-                          : muted,
-                    ),
-                  ),
-              ],
+            child: Text(
+              '→ ${shortStopName(d.dest)}',
+              style: theme.textTheme.bodyLarge?.copyWith(decoration: d.canceled ? TextDecoration.lineThrough : null),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              if (d.canceled)
-                Text('✕ Cancelado', style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.error))
-              else
-                Text(formatWait(d.minutes),
-                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-              Row(mainAxisSize: MainAxisSize.min, children: [
-                Text(hhmm(d.estimated),
-                    style: muted?.copyWith(decoration: d.canceled ? TextDecoration.lineThrough : null)),
-                if (delay != null && !d.canceled) ...[
-                  const SizedBox(width: 4),
-                  Text(delay,
-                      style: muted?.copyWith(
-                          color: d.delaySec! > 0 ? theme.colorScheme.error : Colors.green.shade700,
-                          fontWeight: FontWeight.w600)),
-                ],
-                if (!d.live) ...[const SizedBox(width: 6), Text('previsto', style: muted)],
-              ]),
-            ],
-          ),
+          const SizedBox(width: 8),
+          PlatformPill(d),
+          const SizedBox(width: 12),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [_Wait(d), _Time(d)]),
         ],
       ),
     );
@@ -121,10 +213,73 @@ class DepartureRow extends StatelessWidget {
       child: AnimatedSize(
         duration: const Duration(milliseconds: 200),
         alignment: Alignment.topCenter,
-        child: Column(children: [
-          row,
-          if (expanded) _StopList(key: ValueKey('stops-${d.tripId}'), d: d),
-        ]),
+        child: Column(
+          children: [
+            // A canceled train stays listed but steps back from the ones that run.
+            Opacity(opacity: d.canceled ? 0.55 : 1, child: row),
+            if (expanded) _StopList(key: ValueKey('stops-${d.tripId}'), d: d),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The next train, large: what the user looks for while walking to the platform.
+class NextTrainCard extends StatelessWidget {
+  const NextTrainCard(this.d, {super.key, this.expanded = false, this.onTap});
+  final Departure d;
+  final bool expanded;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(18));
+    return Material(
+      color: theme.colorScheme.surfaceContainerHighest,
+      shape: shape,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          alignment: Alignment.topCenter,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    LineBadge(d.line, d.color),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '→ ${shortStopName(d.dest)}',
+                        style: theme.textTheme.titleMedium,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(child: _Wait(d, style: theme.textTheme.displaySmall)),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [PlatformPill(d, large: true), const SizedBox(height: 4), _Time(d)],
+                    ),
+                  ],
+                ),
+                if (expanded) ...[const SizedBox(height: 8), _StopList(key: ValueKey('stops-${d.tripId}'), d: d)],
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

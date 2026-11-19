@@ -228,6 +228,18 @@ void main() {
     expect((await SharedPreferences.getInstance()).getString('last_station'), '69110');
   });
 
+  test('recent stations: newest first, current one left out, persisted', () async {
+    final c = await startedAt(nearSilla);
+    expect(c.recentStations, isEmpty);
+    c.selectStation('69110');
+    expect(c.recentStations.map((s) => s.id), ['64200']);
+    c.selectStation('18000');
+    expect(c.recentStations.map((s) => s.id), ['69110', '64200']);
+    c.selectStation('64200');
+    expect(c.recentStations.map((s) => s.id), ['18000', '69110']);
+    expect((await SharedPreferences.getInstance()).getString('recent_stations'), '["64200","18000","69110"]');
+  });
+
   test('late location does not override manual pick', () async {
     final c = await make();
     final started = c.start();

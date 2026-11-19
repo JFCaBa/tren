@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:proximotren/app_controller.dart';
 import 'package:proximotren/data/realtime.dart';
+import 'package:proximotren/ui/departure_row.dart';
 import 'package:proximotren/ui/home_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
@@ -52,9 +53,32 @@ void main() {
     expect(find.widgetWithText(FilterChip, 'Gandia'), findsOneWidget);
     expect(find.widgetWithText(FilterChip, 'València Nord'), findsOneWidget);
     expect(find.text('1:04 h'), findsOneWidget); // T1 at Silla 18:55 + 9 min RT delay
-    expect(find.text('(+9)'), findsOneWidget);
+    expect(find.text('18:55'), findsOneWidget); // scheduled, struck out
+    final late = tester.widget<Text>(find.text('19:04'));
+    expect(late.style?.color, lateColor(tester.element(find.text('19:04'))));
     expect(find.textContaining('Datos: Renfe'), findsOneWidget);
-    expect(find.textContaining(RegExp(r'actualizado a las \d\d:\d\d')), findsOneWidget);
+    expect(find.textContaining(RegExp(r'En vivo · \d\d:\d\d')), findsOneWidget);
+  });
+
+  testWidgets('the first train is shown large, the rest as rows', (tester) async {
+    final c = await started(tester);
+    await show(tester, c);
+    final first = c.board!.departures.firstWhere((d) => !d.canceled);
+    expect(find.byType(NextTrainCard), findsOneWidget);
+    expect(tester.widget<NextTrainCard>(find.byType(NextTrainCard)).d.id, first.id);
+    expect(find.byType(DepartureRow), findsNWidgets(c.board!.departures.length - 1));
+  });
+
+  testWidgets('recent stations are shortcuts', (tester) async {
+    final c = await started(tester);
+    c.selectStation('69110');
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+    await show(tester, c);
+    final chip = find.widgetWithText(ActionChip, 'Silla');
+    expect(chip, findsOneWidget);
+    await tester.tap(chip);
+    await tester.pump();
+    expect(c.station!.id, '64200');
   });
 
   testWidgets('Privacidad link opens the privacy policy page', (tester) async {
