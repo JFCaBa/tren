@@ -1,0 +1,30 @@
+<!doctype html><meta charset="utf-8">
+<!-- App Store header, style B (departure board). 5244x2950; everything that matters sits inside the
+     art safe area 1402x962 at (1921,660). Render: render-header-b.sh -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Doto:wght@900&display=block">
+<style>
+html,body{margin:0;width:5244px;height:2950px;overflow:hidden;background:#0A0E12;font-family:'Doto',monospace}
+/* a faint dot-matrix field over the whole canvas */
+.dots{position:absolute;inset:0;background:radial-gradient(circle,#1a222a 5px,transparent 6px) 0 0/36px 36px}
+.glow{position:absolute;left:1100px;top:250px;width:3044px;height:1800px;background:radial-gradient(closest-side,rgba(255,176,32,.20),rgba(255,176,32,.05) 60%,transparent)}
+/* light trails in the line colors, far from the safe area */
+.trail{position:absolute;height:22px;border-radius:11px;filter:blur(3px)}
+.board{position:absolute;left:1951px;top:690px;width:1342px;height:902px;box-sizing:border-box;border-radius:56px;
+  background:#11161b;box-shadow:inset 0 0 0 8px #1d242b,0 60px 160px -40px #000;padding:70px 72px;display:grid;align-content:space-between}
+.h{color:#7fd1c7;font-size:62px;font-weight:900;text-shadow:0 0 22px rgba(127,209,199,.5);display:flex;justify-content:space-between}
+.r{display:flex;justify-content:space-between;color:#FFB020;font-size:96px;font-weight:900;line-height:1;text-shadow:0 0 30px rgba(255,176,32,.6)}
+.rule{height:8px;background:repeating-linear-gradient(90deg,#2a323a 0 18px,transparent 18px 36px)}
+</style>
+<div class="dots"></div>
+<div class="glow"></div>
+<div class="trail" style="left:-200px;top:2350px;width:1500px;background:#4FB4E6;opacity:.35"></div>
+<div class="trail" style="left:-200px;top:2420px;width:1100px;background:#F2B900;opacity:.3"></div>
+<div class="trail" style="left:3900px;top:520px;width:1500px;background:#D8262F;opacity:.3"></div>
+<div class="trail" style="left:4300px;top:590px;width:1100px;background:#00953A;opacity:.3"></div>
+<div class="board">
+  <div class="h"><span>ATOCHA · SALIDAS</span><span>08:13</span></div>
+  <div class="rule"></div>
+  <div class="r"><span>C-5 FUENLABRADA</span><span>3'</span></div>
+  <div class="r"><span>C-3 ARANJUEZ</span><span>9'</span></div>
+  <div class="r"><span>C-4b PARLA</span><span>12'</span></div>
+</div>
