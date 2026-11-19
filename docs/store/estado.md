@@ -25,6 +25,7 @@
 - **Versión 1.1.0 (13)** (18-11-2026): más trenes con scroll / «Ver más» + `screen.portrait` no obligatoria (+7 tablets, +3 TV).
   AAB subido por el usuario, notas es-ES, vista previa "Ready to release"; guardada en Publishing overview, **sin enviar**:
   **enviada a revisión por el usuario el 18-11-2026**. Al aprobarse se publica sola en Alpha (publicación gestionada off).
+- **Versión 1.2.0 (14)** (19-11-2026): ficha actualizada (descripción 1.2, 5 capturas nuevas estilo panel, gráfico destacado `tools/icon/feature-b-1024x500.png`) guardada; borrador de versión en Alpha con notas es-ES. Falta: el usuario arrastra el AAB, "Next"/"Save" y envía los cambios a revisión desde Publishing overview.
 - Probadores: listas "Alpha testers" (5) y "Beta testers" (22), 23 direcciones distintas.
   Enlace web: https://play.google.com/apps/testing/com.jfcaba.proximotren
 
