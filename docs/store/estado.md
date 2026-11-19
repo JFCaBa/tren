@@ -10,6 +10,8 @@
 
 - 19-11-2026: la 1.0 ya está en la App Store. **Versión 1.1.0 preparada** en App Store Connect con el build 12: descripción nueva (vía, búsqueda, «Ver más», FUENTE data.renfe.com, aviso "ni con ningún organismo público"), novedades, notas del revisor 1.1 (`review-notes-en.md`, sin grabación) y **publicación manual**. Falta que el usuario pulse "Add for Review"; se publica la semana del 23-11-2026.
 
+- 19-11-2026: **capturas y vista previa nuevas para la 1.2** (estilo "panel de andén"): `docs/store/screenshots/{ios (6,9"),ios-6.3,android}` (5 cada una) y `docs/store/preview/preview-886x1920.mp4` (29,7 s). Se suben al preparar la versión 1.2 (en App Store Connect las capturas van con cada versión). Cómo regenerarlas: `tools/store/README.md`.
+
 ## Google Play (Android)
 
 - Cuenta "Jose Catala" (jfcaba68@). La otra cuenta personal (jfca68@) está cerrada desde 2024.
