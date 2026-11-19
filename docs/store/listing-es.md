@@ -17,7 +17,7 @@ Próximo tren de Cercanías
 Cuánto falta para tu tren de Cercanías, con retrasos en tiempo real.
 
 **Texto promocional (App Store, ≤ 170):**
-Abre la app y mira cuánto falta para los próximos trenes en tu estación, con retrasos en tiempo real. Madrid, Barcelona, Valencia, Bilbao, Sevilla y más.
+Abre la app y ve tu próximo tren en grande, con la vía y los retrasos en tiempo real. Madrid, Barcelona, Valencia, Bilbao, Sevilla y más.
 
 **Palabras clave (App Store, ≤ 100, separadas por comas, sin espacios):**
 cercanías,tren,rodalies,horarios,retrasos,estación,tiempo real,trenes,llegada,salidas
@@ -34,10 +34,10 @@ Andén responde a una sola pregunta: ¿cuánto falta para mi tren?
 Abres la app y ves la estación de Cercanías más cercana con los próximos trenes, en los dos sentidos, ordenados por hora. Si un tren va con retraso, lo verás al momento y con la hora ya corregida.
 
 QUÉ HACE
-• Detecta tu estación más cercana con la ubicación. También puedes buscarla por su nombre.
-• Muestra los próximos trenes, con línea, destino y minutos que faltan. Baja hasta el final de la lista o toca «Ver más» para ver más trenes.
+• Detecta tu estación más cercana con la ubicación. También puedes buscarla por su nombre, y tus estaciones recientes quedan a un toque.
+• El próximo tren, en grande, nada más abrir. Debajo, los siguientes con línea, destino y minutos que faltan. Baja hasta el final de la lista o toca «Ver más» para ver más trenes.
 • La vía de cada tren: en vivo cuando Renfe la publica y, si no, la habitual.
-• Retrasos y cancelaciones en tiempo real. Cuando no hay dato en vivo, indica la hora prevista.
+• Retrasos y cancelaciones en tiempo real, con la hora prevista tachada junto a la nueva. Cuando no hay dato en vivo, indica la hora prevista.
 • Filtros por destino: marca adónde vas y Andén lo recordará para esa estación.
 • Toca un tren para ver todas las paradas que le quedan, con su hora.
 • Funciona sin conexión con el último horario descargado.
@@ -55,6 +55,14 @@ FUENTE
 Datos abiertos de Renfe (licencia CC BY 4.0): https://data.renfe.com/
 
 ## Novedades de esta versión
+
+**1.2:**
+• El próximo tren, en grande, nada más abrir.
+• La vía de cada tren, más visible: rellena si es en vivo y con borde si es la habitual.
+• Retrasos más claros: la hora prevista tachada junto a la nueva, en ámbar a partir de 3 minutos. Los trenes cancelados se ven atenuados.
+• Tus estaciones recientes, a un toque bajo el nombre de la estación.
+• «En vivo» y la hora de la última actualización junto a la estación.
+• Aviso cuando no pasan trenes en un buen rato, por ejemplo de madrugada.
 
 **1.1:** Ahora muestra la vía: en vivo cuando Renfe la publica y la habitual de cada tren. Puedes buscar cualquier estación por su nombre y ver más trenes bajando hasta el final de la lista.
 
