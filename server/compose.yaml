@@ -1,0 +1,19 @@
+services:
+  anden-api:
+    build: .
+    image: anden-api
+    env_file: /opt/anden/.env
+    ports:
+      - "127.0.0.1:8520:8520"
+    restart: unless-stopped
+    stop_grace_period: 40s  # time to end every Live Activity on shutdown
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
