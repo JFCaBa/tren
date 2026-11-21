@@ -3,7 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 import 'package:http/testing.dart';
+import 'package:proximotren/follow/follow_logic.dart';
+import 'package:proximotren/follow/follower.dart';
 import 'package:proximotren/location.dart';
 
 final rtBody = File('test/fixtures/trip_updates.json').readAsStringSync();
@@ -94,6 +97,11 @@ class TimerLog {
   final timers = <FakeTimer>[];
   Timer create(Duration d, void Function(Timer) cb) => FakeTimer(cb)..register(this);
   int get active => timers.where((t) => t.isActive).length;
+  void fireActive() {
+    for (final t in [...timers]) {
+      if (t.isActive) t.fire();
+    }
+  }
 }
 
 class FakeTimer implements Timer {
@@ -147,4 +155,35 @@ String manyTrainsFeed(int n) {
       },
   ];
   return jsonEncode(d);
+}
+
+
+class FakeFollower extends ChangeNotifier implements Follower {
+  FakeFollower({this.granted = true});
+  bool granted;
+  Exception? failure;
+  @override
+  FollowedTrain? current;
+
+  @override
+  Future<bool> follow(FollowedTrain t) async {
+    if (failure != null) throw failure!;
+    if (!granted) return false;
+    current = t;
+    notifyListeners();
+    return true;
+  }
+
+  @override
+  Future<void> stop() async {
+    current = null;
+    notifyListeners();
+  }
+
+  @override
+  Future<void> sync() async {}
+
+  int settingsOpened = 0;
+  @override
+  Future<void> openSettings() async => settingsOpened++;
 }

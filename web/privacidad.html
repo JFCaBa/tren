@@ -22,7 +22,7 @@
 <body>
 <header><h1>Andén</h1><p>Política de privacidad</p></header>
 <main>
-  <div class="card"><strong>En resumen:</strong> Andén no recoge, no guarda en ningún servidor y no comparte ningún dato tuyo. No hay cuentas, ni analítica, ni anuncios.</div>
+  <div class="card"><strong>En resumen:</strong> Andén no recoge datos personales ni los comparte. No hay cuentas, ni analítica, ni anuncios. La única excepción: si sigues un tren en un iPhone, el identificador de notificaciones del teléfono se guarda unas horas en nuestro servidor, solo en memoria (ver abajo).</div>
 
   <h2>Responsable</h2>
   <p>${CONTACT_NAME}. Contacto: <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
@@ -34,12 +34,21 @@
   <p>La app guarda en el dispositivo la última estación consultada, los filtros de destino que elijas y una copia de los horarios para funcionar sin conexión. Se borran al desinstalar la app.</p>
 
   <h2>Conexiones de red</h2>
-  <p>La app solo descarga información pública, sin enviar identificadores ni datos personales:</p>
+  <p>La app descarga información pública, sin enviar datos personales:</p>
   <ul>
     <li><code>jfcaba.github.io</code> — horarios de Cercanías ya procesados (GitHub Pages).</li>
     <li><code>gtfsrt.renfe.com</code> — posición y retrasos de los trenes en tiempo real (datos abiertos de Renfe).</li>
+    <li><code>api.whatplatform.uk</code> — nuestro servidor, solo si sigues un tren (ver «Seguir un tren»).</li>
   </ul>
   <p>Como en cualquier conexión a Internet, esos servidores reciben la dirección IP técnica necesaria para responder; Andén no la recoge ni la asocia a nada.</p>
+
+  <h2>Seguir un tren</h2>
+  <p>Si sigues un tren, Andén te avisa si cambia su vía, se retrasa o se cancela, y muestra dónde está.</p>
+  <ul>
+    <li><strong>En Android</strong>, el propio teléfono consulta cada 30 segundos el estado de ese tren a nuestro servidor (<code>api.whatplatform.uk</code>), enviando solo el identificador del tren y de la estación. No se envía nada que te identifique.</li>
+    <li><strong>En iPhone</strong>, la app envía a nuestro servidor el identificador de notificaciones del teléfono (un identificador seudónimo del dispositivo), el de su Actividad en directo de la pantalla de bloqueo y el tren que sigues, para que el servidor pueda avisarte aunque la app esté cerrada. Se guardan solo en la memoria del servidor y se borran cuando el tren sale, 2 minutos después de una cancelación, a las 3 horas o cuando dejas de seguirlo. El servicio de notificaciones de Apple entrega los avisos.</li>
+  </ul>
+  <p>El servidor no guarda ni registra nada más: ni direcciones IP, ni qué trenes se consultan.</p>
 
   <h2>Menores</h2>
   <p>La app no recoge datos de nadie, tampoco de menores.</p>
@@ -47,7 +56,7 @@
   <h2>Cambios</h2>
   <p>Si esta política cambia, se publicará aquí con su nueva fecha.</p>
 
-  <p><small>Andén es una app independiente y no oficial, sin relación con Renfe. Datos: Renfe (datos abiertos).<br>Última actualización: 16 de noviembre de 2026.</small></p>
+  <p><small>Andén es una app independiente y no oficial, sin relación con Renfe. Datos: Renfe (datos abiertos).<br>Última actualización: 21 de noviembre de 2026.</small></p>
 </main>
 </body>
 </html>

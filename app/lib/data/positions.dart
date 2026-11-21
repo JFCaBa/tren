@@ -14,8 +14,14 @@ const positionsMaxAge = Duration(minutes: 2);
 
 typedef LivePlatform = ({String stopId, String platform, DateTime at});
 
+/// Where a train is: at (STOPPED_AT), arriving at (INCOMING_AT) or on its way to (IN_TRANSIT_TO) a stop.
+typedef TrainSighting = ({String stopId, String status});
+
+const _seenStatuses = {'INCOMING_AT', 'STOPPED_AT', 'IN_TRANSIT_TO'};
+
 class PlatformSnapshot {
-  const PlatformSnapshot({required this.fetchedAt, required this.feedTimestamp, required this.byTrip});
+  const PlatformSnapshot(
+      {required this.fetchedAt, required this.feedTimestamp, required this.byTrip, this.seen = const {}});
 
   final DateTime fetchedAt;
   final DateTime feedTimestamp;
@@ -23,7 +29,11 @@ class PlatformSnapshot {
   /// tripId -> where the train is and its platform there.
   final Map<String, LivePlatform> byTrip;
 
-  PlatformSnapshot refetched(DateTime at) => PlatformSnapshot(fetchedAt: at, feedTimestamp: feedTimestamp, byTrip: byTrip);
+  /// tripId -> where every train in the feed is, with or without a platform.
+  final Map<String, TrainSighting> seen;
+
+  PlatformSnapshot refetched(DateTime at) =>
+      PlatformSnapshot(fetchedAt: at, feedTimestamp: feedTimestamp, byTrip: byTrip, seen: seen);
 }
 
 DateTime? _epoch(Object? v) {
@@ -34,19 +44,25 @@ DateTime? _epoch(Object? v) {
 PlatformSnapshot parsePositions(Map<String, dynamic> json, DateTime fetchedAt) {
   final feedTs = _epoch((json['header'] as Map?)?['timestamp']) ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
   final byTrip = <String, LivePlatform>{};
+  final seen = <String, TrainSighting>{};
   for (final e in (json['entity'] as List? ?? const [])) {
     if (e is! Map) continue;
     final v = e['vehicle'];
-    if (v is! Map || !_statuses.contains(v['currentStatus'])) continue;
+    if (v is! Map) continue;
     final tripId = (v['trip'] as Map?)?['tripId'];
     final stopId = v['stopId'];
+    final status = v['currentStatus'];
+    if (tripId is String && stopId is String && stopId != '00000' && status is String && _seenStatuses.contains(status)) {
+      seen[tripId] = (stopId: stopId, status: status);
+    }
+    if (!_statuses.contains(status)) continue;
     final label = (v['vehicle'] as Map?)?['label'];
     if (tripId is! String || stopId is! String || stopId == '00000' || label is! String) continue;
     final platform = _label.firstMatch(label.trim())?.group(3)?.trim();
     if (platform == null || platform.isEmpty) continue;
     byTrip[tripId] = (stopId: stopId, platform: platform, at: _epoch(v['timestamp']) ?? feedTs);
   }
-  return PlatformSnapshot(fetchedAt: fetchedAt, feedTimestamp: feedTs, byTrip: byTrip);
+  return PlatformSnapshot(fetchedAt: fetchedAt, feedTimestamp: feedTs, byTrip: byTrip, seen: seen);
 }
 
 /// tripId -> platform for trains reported at [stopId], if the data is fresh at [now].

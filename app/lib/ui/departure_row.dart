@@ -178,11 +178,39 @@ class _Time extends StatelessWidget {
   }
 }
 
+/// "Seguir este tren" / "Dejar de seguir" under the stops of an open train.
+class FollowButton extends StatelessWidget {
+  const FollowButton({super.key, required this.followed, required this.onPressed});
+  final bool followed;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: followed
+              ? OutlinedButton.icon(
+                  onPressed: onPressed, icon: const Icon(Icons.notifications_off), label: const Text('Dejar de seguir'))
+              : FilledButton.tonalIcon(
+                  onPressed: onPressed, icon: const Icon(Icons.notifications_active), label: const Text('Seguir este tren')),
+        ),
+      );
+}
+
 class DepartureRow extends StatelessWidget {
-  const DepartureRow(this.d, {super.key, this.expanded = false, this.onTap});
+  const DepartureRow(this.d,
+      {super.key, this.expanded = false, this.onTap, this.followed = false, this.onLongPress, this.onFollow});
   final Departure d;
   final bool expanded;
   final VoidCallback? onTap;
+
+  /// This is the train being followed: shows a bell.
+  final bool followed;
+  final VoidCallback? onLongPress;
+
+  /// Follow / stop following, offered under the stops; null where following is not available.
+  final VoidCallback? onFollow;
 
   @override
   Widget build(BuildContext context) {
@@ -202,6 +230,11 @@ class DepartureRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
+          if (followed)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: Icon(Icons.notifications_active, size: 20, color: theme.colorScheme.primary, semanticLabel: 'Siguiendo'),
+            ),
           PlatformPill(d),
           const SizedBox(width: 12),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [_Wait(d), _Time(d)]),
@@ -210,6 +243,7 @@ class DepartureRow extends StatelessWidget {
     );
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: AnimatedSize(
         duration: const Duration(milliseconds: 200),
         alignment: Alignment.topCenter,
@@ -218,6 +252,7 @@ class DepartureRow extends StatelessWidget {
             // A canceled train stays listed but steps back from the ones that run.
             Opacity(opacity: d.canceled ? 0.55 : 1, child: row),
             if (expanded) _StopList(key: ValueKey('stops-${d.tripId}'), d: d),
+            if (expanded && onFollow != null) FollowButton(followed: followed, onPressed: onFollow!),
           ],
         ),
       ),
@@ -227,10 +262,17 @@ class DepartureRow extends StatelessWidget {
 
 /// The next train, large: what the user looks for while walking to the platform.
 class NextTrainCard extends StatelessWidget {
-  const NextTrainCard(this.d, {super.key, this.expanded = false, this.onTap});
+  const NextTrainCard(this.d,
+      {super.key, this.expanded = false, this.onTap, this.followed = false, this.where, this.onLongPress, this.onFollow});
   final Departure d;
   final bool expanded;
   final VoidCallback? onTap;
+  final bool followed;
+
+  /// Where the followed train is now ("En Atocha · a 2 paradas").
+  final String? where;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onFollow;
 
   @override
   Widget build(BuildContext context) {
@@ -242,6 +284,7 @@ class NextTrainCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: AnimatedSize(
           duration: const Duration(milliseconds: 200),
           alignment: Alignment.topCenter,
@@ -262,6 +305,13 @@ class NextTrainCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    if (followed) ...[
+                      Icon(Icons.notifications_active, size: 18, color: theme.colorScheme.primary),
+                      const SizedBox(width: 4),
+                      Text('Siguiendo',
+                          style: theme.textTheme.labelMedium
+                              ?.copyWith(color: theme.colorScheme.primary, fontWeight: FontWeight.w700)),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -275,7 +325,21 @@ class NextTrainCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (where != null && !d.canceled)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(children: [
+                      Icon(Icons.train, size: 16, color: theme.colorScheme.primary),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(where!,
+                            style: theme.textTheme.bodyMedium
+                                ?.copyWith(color: theme.colorScheme.primary, fontWeight: FontWeight.w600)),
+                      ),
+                    ]),
+                  ),
                 if (expanded) ...[const SizedBox(height: 8), _StopList(key: ValueKey('stops-${d.tripId}'), d: d)],
+                if (expanded && onFollow != null) FollowButton(followed: followed, onPressed: onFollow!),
               ],
             ),
           ),

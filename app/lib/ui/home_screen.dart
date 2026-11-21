@@ -5,16 +5,27 @@ import 'package:url_launcher/url_launcher.dart';
 import '../app_controller.dart';
 import '../config.dart';
 import '../domain/board.dart';
+import '../domain/position.dart';
+import '../follow/follow_logic.dart';
+import '../follow/follow_tracker.dart';
+import '../follow/follower.dart';
 import 'departure_row.dart';
 import 'names.dart';
 import 'station_picker.dart';
+import 'your_train.dart';
 
 /// Beyond this, the nearest station is probably not useful; say so.
 const farFromCercaniasMeters = 25000;
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.controller, this.openUrl = _launchExternal});
+  const HomeScreen({super.key, required this.controller, this.openUrl = _launchExternal, this.follower, this.tracker});
   final AppController controller;
+
+  /// Follows one train (null where following is not available).
+  final Follower? follower;
+
+  /// The followed train, live, for the home screen.
+  final FollowTracker? tracker;
 
   /// Opens a web page; injectable for tests.
   final Future<void> Function(Uri) openUrl;
@@ -84,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-        listenable: controller,
+        listenable: Listenable.merge([controller, ?widget.follower, ?widget.tracker]),
         builder: (context, _) => Scaffold(body: SafeArea(child: _body(context))),
       );
 
@@ -108,8 +119,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     final theme = Theme.of(context);
     final board = c.board;
-    // The first train that runs goes in the large card; canceled ones stay rows.
-    final next = board == null ? null : nextTrainIndex(board.departures);
+    // The large card: the followed train when this board lists it, else the first train that runs
+    // (canceled ones stay rows).
+    final current = widget.follower?.current;
+    final followedAt = board == null || current == null ? -1 : board.departures.indexWhere(current.matches);
+    final next = board == null ? null : (followedAt >= 0 ? followedAt : nextTrainIndex(board.departures));
     // With a destination filter a long gap is only that destination's: not worth calling out.
     bool gapAt(int i) => c.filters.isEmpty && startsAfterGap(board!.departures, i);
     return RefreshIndicator(
@@ -173,6 +187,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                 ]),
               ),
+            ?_yourTrain(context, followedAt),
             if (board == null)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 48),
@@ -191,7 +206,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (gapAt(next)) _gapNote(context, board.departures[next]),
                 NextTrainCard(board.departures[next],
                     expanded: board.departures[next].id == _expanded,
-                    onTap: () => _toggle(board.departures[next].id)),
+                    onTap: () => _toggle(board.departures[next].id),
+                    followed: next == followedAt,
+                    where: next == followedAt
+                        ? whereText(current!.route, current.stopId, widget.tracker?.reading?.seen)
+                        : null,
+                    onLongPress: _followAction(context, board.departures[next], next == followedAt),
+                    onFollow: _followAction(context, board.departures[next], next == followedAt)),
                 const SizedBox(height: 4),
               ] else
                 const Divider(),
@@ -202,7 +223,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   if (i != next) ...[
                     if (gapAt(i)) _gapNote(context, board.departures[i]),
                     DepartureRow(board.departures[i],
-                        expanded: board.departures[i].id == _expanded, onTap: () => _toggle(board.departures[i].id)),
+                        expanded: board.departures[i].id == _expanded,
+                        onTap: () => _toggle(board.departures[i].id),
+                        followed: i == followedAt,
+                        onLongPress: _followAction(context, board.departures[i], i == followedAt),
+                        onFollow: _followAction(context, board.departures[i], i == followedAt)),
                   ],
               // Scrolling near the end also loads more; the button covers lists that fit without scrolling.
               if (board.hasMore) Center(child: TextButton(onPressed: c.loadMore, child: const Text('Ver más'))),
@@ -219,6 +244,29 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+
+  /// The followed train at another station (or no longer on this board): a strip on top.
+  Widget? _yourTrain(BuildContext context, int followedAt) {
+    final t = widget.tracker?.train ?? widget.follower?.current;
+    if (t == null || followedAt >= 0) return null;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: YourTrainStrip(
+        train: t,
+        reading: widget.tracker?.reading,
+        nowUtc: controller.now().toUtc(),
+        onTap: controller.station?.id == t.stopId ? null : () => controller.selectStation(t.stopId),
+      ),
+    );
+  }
+
+  /// Long press / panel button: follow [d], or stop following it. Null when following is not
+  /// available, or for a canceled train.
+  VoidCallback? _followAction(BuildContext context, Departure d, bool followed) {
+    final f = widget.follower, station = controller.station;
+    if (f == null || station == null || (d.canceled && !followed)) return null;
+    return () => _toggleFollow(context, f, FollowedTrain.of(d, station.id), followed);
   }
 
   List<Widget> _warnings(BuildContext context, Board b) => [
@@ -314,4 +362,48 @@ class _Banner extends StatelessWidget {
       ]),
     );
   }
+}
+
+Future<void> _toggleFollow(BuildContext context, Follower follower, FollowedTrain t, bool followed) async {
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.hideCurrentSnackBar();
+  if (followed) {
+    await follower.stop();
+    messenger.showSnackBar(const SnackBar(content: Text('Has dejado de seguirlo')));
+    return;
+  }
+  final previous = follower.current;
+  if (!await _follow(messenger, follower, t)) return;
+  if (follower.current != t) return; // a later follow or stop replaced this one meanwhile
+  messenger.showSnackBar(SnackBar(
+    content: Text('Siguiendo ${t.title}'),
+    action: SnackBarAction(
+      label: 'Deshacer',
+      onPressed: () => previous == null ? follower.stop() : _follow(messenger, follower, previous),
+    ),
+  ));
+}
+
+const _deniedText = 'Activa las notificaciones de Andén para seguir trenes';
+
+/// Follows [t]; on failure says why and returns false.
+Future<bool> _follow(ScaffoldMessengerState messenger, Follower follower, FollowedTrain t) async {
+  String? problem;
+  try {
+    if (!await follower.follow(t)) problem = _deniedText;
+  } on FollowFailed catch (e) {
+    problem = switch (e.reason) {
+      FollowFailure.gone => 'Ese tren ya ha salido',
+      FollowFailure.network => 'No se pudo seguir: revisa la conexión',
+      FollowFailure.notifications => _deniedText,
+    };
+  } catch (_) {
+    problem = 'No se pudo seguir: revisa la conexión';
+  }
+  if (problem == null) return true;
+  messenger.showSnackBar(SnackBar(
+    content: Text(problem),
+    action: problem == _deniedText ? SnackBarAction(label: 'Ajustes', onPressed: follower.openSettings) : null,
+  ));
+  return false;
 }

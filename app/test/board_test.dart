@@ -61,6 +61,14 @@ void main() {
 
   tz.TZDateTime now() => at(2026, 11, 15, 18, 0);
 
+  test('route: the stops from the first one up to this station, with names', () {
+    final b = computeBoard([feedOf([inb('I1', 18 * 3600 + 600)] + [out('O1', 18 * 3600 + 900)])], '64200', now(), null);
+    final o = b.departures.firstWhere((d) => d.tripId == 'O1');
+    expect(o.route.map((r) => r.$1), ['65000', '64200']);
+    expect(o.route.last.$2, silla.name);
+    expect(b.departures.firstWhere((d) => d.tripId == 'I1').route.map((r) => r.$1), ['64200']);
+  });
+
   test('orders all departures by estimated time and limits to 8', () {
     final trips = [for (var i = 9; i >= 0; i--) i.isEven ? out('o$i', hm(18, 10 + i)) : inb('i$i', hm(18, 10 + i))];
     final b = computeBoard([feedOf(trips)], '64200', now(), null);

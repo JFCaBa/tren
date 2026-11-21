@@ -35,6 +35,7 @@ class Departure {
     this.stops = const [],
     this.usualPlatform,
     this.livePlatform,
+    this.route = const [],
   });
 
   final String tripId;
@@ -56,6 +57,10 @@ class Departure {
   /// Platform this train usually uses at the station (learned), and the one Renfe reports live.
   final String? usualPlatform;
   final String? livePlatform;
+
+  /// (stopId, name) from the train's first stop up to and including this station: where it is
+  /// now is told against these (domain/position.dart).
+  final List<(String, String)> route;
 
   /// One train on one service day (a trip id alone could repeat across days).
   String get id => '$tripId@${scheduled.toIso8601String()}';
@@ -184,6 +189,9 @@ Board computeBoard(
         // Renfe only reports a platform while the train arrives; a trip id that repeats on other
         // days must not lend it to tomorrow's run.
         livePlatform: c.d.minutes <= _livePlatformWithinMinutes ? livePlatforms[c.trip.id] : null,
+        route: [
+          for (final (id, _) in c.trip.times.take(c.idx + 1)) (id, names[c.feed]![id] ?? id),
+        ],
         stops: [
           for (final (id, secs) in c.trip.times.skip(c.idx))
             StopTime(

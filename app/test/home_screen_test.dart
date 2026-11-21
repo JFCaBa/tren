@@ -4,8 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:proximotren/app_controller.dart';
 import 'package:proximotren/data/realtime.dart';
+import 'package:proximotren/follow/follow_logic.dart';
+import 'package:proximotren/follow/follow_tracker.dart';
+import 'package:proximotren/follow/follower.dart';
 import 'package:proximotren/ui/departure_row.dart';
 import 'package:proximotren/ui/home_screen.dart';
+import 'package:proximotren/ui/your_train.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
@@ -42,8 +46,8 @@ void main() {
     return c;
   }
 
-  Future<void> show(WidgetTester tester, AppController c) =>
-      tester.pumpWidget(MaterialApp(home: HomeScreen(controller: c)));
+  Future<void> show(WidgetTester tester, AppController c, {Follower? follower, FollowTracker? tracker}) =>
+      tester.pumpWidget(MaterialApp(home: HomeScreen(controller: c, follower: follower, tracker: tracker)));
 
   testWidgets('renders station, filter chips, departures and Datos: Renfe', (tester) async {
     final c = await started(tester);
@@ -283,5 +287,109 @@ void main() {
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 150)));
     await tester.pump();
     expect(c.station!.id, '18002');
+  });
+
+  group('seguir un tren', () {
+    final bell = find.byIcon(Icons.notifications_active);
+
+    testWidgets('long press follows: bell, the card becomes that train, snackbar with undo', (tester) async {
+      final c = await started(tester);
+      final f = FakeFollower();
+      await show(tester, c, follower: f);
+      final rows = find.byType(DepartureRow);
+      final second = tester.widget<DepartureRow>(rows.first).d;
+      await tester.longPress(rows.first);
+      await tester.pump();
+      expect(f.current!.tripId, second.tripId);
+      expect(f.current!.stopId, c.station!.id);
+      expect(f.current!.route.last.$1, c.station!.id);
+      expect(tester.widget<NextTrainCard>(find.byType(NextTrainCard)).d.id, second.id);
+      expect(find.descendant(of: find.byType(NextTrainCard), matching: find.text('Siguiendo')), findsOneWidget);
+      expect(find.textContaining('Siguiendo '), findsOneWidget); // snackbar
+      await tester.pump(const Duration(seconds: 1));
+      await tester.tap(find.text('Deshacer'));
+      await tester.pump();
+      expect(f.current, isNull);
+    });
+
+    testWidgets('long press on the followed train stops following', (tester) async {
+      final c = await started(tester);
+      final f = FakeFollower();
+      await show(tester, c, follower: f);
+      await tester.longPress(find.byType(NextTrainCard));
+      await tester.pump();
+      expect(f.current, isNotNull);
+      await tester.longPress(find.byType(NextTrainCard));
+      await tester.pump();
+      expect(f.current, isNull);
+      expect(find.text('Has dejado de seguirlo'), findsOneWidget);
+    });
+
+    testWidgets('notifications denied says so, with Ajustes', (tester) async {
+      final c = await started(tester);
+      final f = FakeFollower(granted: false);
+      await show(tester, c, follower: f);
+      await tester.longPress(find.byType(NextTrainCard));
+      await tester.pump();
+      expect(find.text('Activa las notificaciones de Andén para seguir trenes'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 1)); // snackbar slid in
+      await tester.tap(find.text('Ajustes'));
+      expect(f.settingsOpened, 1);
+    });
+
+    testWidgets('the open card offers Seguir este tren', (tester) async {
+      final c = await started(tester);
+      final f = FakeFollower();
+      await show(tester, c, follower: f);
+      await tester.tap(find.byType(NextTrainCard));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Seguir este tren'));
+      await tester.pump();
+      expect(f.current, isNotNull);
+      expect(find.text('Dejar de seguir'), findsOneWidget);
+    });
+
+    testWidgets('no follower: no bell, no buttons', (tester) async {
+      final c = await started(tester);
+      await show(tester, c);
+      await tester.tap(find.byType(NextTrainCard));
+      await tester.pumpAndSettle();
+      expect(find.text('Seguir este tren'), findsNothing);
+      expect(bell, findsNothing);
+    });
+
+    testWidgets('a train at another station: Tu tren strip, live, tap opens its station', (tester) async {
+      final c = await started(tester);
+      final f = FakeFollower()
+        ..current = FollowedTrain(
+            tripId: 'X1',
+            stopId: '69110',
+            scheduled: DateTime.utc(2026, 11, 15, 17, 20),
+            title: '18:20 a Gandia',
+            usualPlatform: '1',
+            route: const [('64200', 'Silla'), ('69110', 'Otra')]);
+      final tracker = FollowTracker(
+          follower: f,
+          periodic: TimerLog().create,
+          clock: () => DateTime.utc(2026, 11, 15, 17, 0),
+          fetch: (t, s) async => const TrainReading(delaySec: 120, seen: (stopId: '64200', status: 'STOPPED_AT')));
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await show(tester, c, follower: f, tracker: tracker);
+      final strip = find.byType(YourTrainStrip);
+      expect(strip, findsOneWidget);
+      expect(find.descendant(of: strip, matching: find.text('Tu tren')), findsOneWidget);
+      expect(find.descendant(of: strip, matching: find.text('18:20 a Gandia')), findsOneWidget);
+      expect(find.descendant(of: strip, matching: find.text('22 min')), findsOneWidget); // 18:00 now, 18:20 + 2
+      expect(find.descendant(of: strip, matching: find.text('Retraso 2 min')), findsOneWidget);
+      expect(find.descendant(of: strip, matching: find.text('En Silla · a 1 parada')), findsOneWidget);
+      expect(find.descendant(of: strip, matching: find.text('Vía 1 (habitual)')), findsOneWidget);
+      // Opening the station loads its schedule over (fake) HTTP: run it outside the fake clock.
+      await tester.runAsync(() async {
+        tester.widget<YourTrainStrip>(strip).onTap!();
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      });
+      expect(c.station!.id, '69110');
+      tracker.dispose();
+    });
   });
 }

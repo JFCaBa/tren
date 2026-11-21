@@ -56,6 +56,11 @@ Datos abiertos de Renfe (licencia CC BY 4.0): https://data.renfe.com/
 
 ## Novedades de esta versión
 
+**1.3:**
+• Sigue un tren: mantenlo pulsado (o «Seguir este tren») y te avisamos si cambia de vía, se retrasa o se cancela, aunque tengas la app cerrada.
+• Tu tren, en vivo: cuenta atrás, vía y por dónde va («En Atocha · a 2 paradas»), en la pantalla de bloqueo y la Dynamic Island del iPhone, en la notificación de Android y arriba en la app aunque mires otra estación.
+• La vía en vivo ya no desaparece al volver a abrir la app, y hay muchas más vías habituales.
+
 **1.2:**
 • El próximo tren, en grande, nada más abrir.
 • La vía de cada tren, más visible: rellena si es en vivo y con borde si es la habitual.
