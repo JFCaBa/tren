@@ -25,6 +25,8 @@ class FakeServer {
   String? positionsBody; // served at gtfsrt.renfe.com/vehicle_positions.json (404 when null)
   bool positionsFails = false;
   int positionsCalls = 0;
+  String? alertsBody; // served at gtfsrt.renfe.com/alerts.json (404 when null)
+  int alertsCalls = 0;
   bool rtFails = false;
   bool rtHangs = false;
   int rtCalls = 0;
@@ -38,6 +40,11 @@ class FakeServer {
       positionsCalls++;
       if (positionsFails) throw const SocketException('offline');
       final body = positionsBody;
+      return body == null ? http.Response('not found', 404) : okJson(body);
+    }
+    if (req.url.host == 'gtfsrt.renfe.com' && req.url.path.endsWith('alerts.json')) {
+      alertsCalls++;
+      final body = alertsBody;
       return body == null ? http.Response('not found', 404) : okJson(body);
     }
     if (req.url.host == 'gtfsrt.renfe.com') {

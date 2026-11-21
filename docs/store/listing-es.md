@@ -56,6 +56,11 @@ Datos abiertos de Renfe (licencia CC BY 4.0): https://data.renfe.com/
 
 ## Novedades de esta versión
 
+**1.4:**
+• ¿Vas a Sol? Toca «Otra parada…», elige tu parada y verás solo los trenes que paran allí, con su hora de llegada.
+• Widget para la pantalla de inicio: los próximos trenes de tu estación, con la vía y los retrasos.
+• Avisos de Renfe: obras, incidencias o ascensores fuera de servicio en tu estación y en sus líneas.
+
 **1.3:**
 • Sigue un tren: mantenlo pulsado (o «Seguir este tren») y te avisamos si cambia de vía, se retrasa o se cancela, aunque tengas la app cerrada.
 • Tu tren, en vivo: cuenta atrás, vía y por dónde va («En Atocha · a 2 paradas»), en la pantalla de bloqueo y la Dynamic Island del iPhone, en la notificación de Android y arriba en la app aunque mires otra estación.

@@ -7,11 +7,13 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 
+import 'data/alerts.dart';
 import 'data/feed.dart';
 import 'data/json_cache.dart';
 import 'data/nucleo_index.dart';
 import 'data/positions.dart';
 import 'data/realtime.dart';
+import 'domain/alerts.dart';
 import 'domain/board.dart';
 import 'domain/nearest.dart';
 import 'location.dart';
@@ -30,6 +32,7 @@ const recentShown = 3;
 /// Stations remembered, so a few that leave the index still leave [recentShown] to offer.
 const _recentKept = 10;
 String _filtersKey(String stopId) => 'filters_$stopId';
+String _viaKey(String stopId) => 'via_$stopId';
 const rtInterval = Duration(seconds: 30);
 
 /// Trains shown at first, and added each time the list is scrolled to its end.
@@ -51,8 +54,10 @@ class AppController extends ChangeNotifier {
     tz.TZDateTime Function()? clock,
     PeriodicTimerFactory? periodic,
     PositionsClient? positions,
+    AlertsClient? alerts,
   })  : _clock = clock ?? madridNow,
         _positionsClient = positions,
+        _alertsClient = alerts,
         _periodic = periodic ?? Timer.periodic,
         _indexCache = indexCache(_client, _cacheDir);
 
@@ -60,6 +65,7 @@ class AppController extends ChangeNotifier {
   final Directory _cacheDir;
   final RealtimeClient _rtClient;
   final PositionsClient? _positionsClient;
+  final AlertsClient? _alertsClient;
   final LocationSource _location;
   final SharedPreferences _prefs;
   final tz.TZDateTime Function() _clock;
@@ -75,6 +81,20 @@ class AppController extends ChangeNotifier {
 
   /// Destinations the list is filtered by; empty = all.
   Set<String> filters = {};
+
+  /// Stop the user is going to («Otra parada…»): only trains that reach it, with their arrival.
+  /// Excludes [filters].
+  String? via;
+
+  /// Name of [via], from the stops this station reaches.
+  String? get viaName {
+    final v = via;
+    if (v == null) return null;
+    for (final (id, name) in board?.reachable ?? const <(String, String)>[]) {
+      if (id == v) return name;
+    }
+    return null;
+  }
 
   /// How many trains the list shows; grows with [loadMore], back to [pageSize] on a new station or filter.
   int limit = pageSize;
@@ -135,6 +155,37 @@ class AppController extends ChangeNotifier {
           e.key.substring(prefix.length): e.value.platform,
       ...platformsAt(positions, stopId, now),
     };
+  }
+
+  /// Renfe service alerts, all of them; kept across failed downloads.
+  List<RenfeAlert> _alerts = const [];
+  tz.TZDateTime? _alertsAt;
+
+  /// Alerts are not urgent: at most one download every this long, only in the foreground.
+  static const alertsEvery = Duration(minutes: 5);
+
+  /// Alerts in effect for the current station and the lines that call there.
+  List<StationAlert> get stationAlerts {
+    final s = station, b = board;
+    if (s == null || b == null || _alerts.isEmpty) return const [];
+    return alertsFor(_alerts, stopId: s.id, lines: b.lines, now: _clock().toUtc());
+  }
+
+  /// Fire and forget: a slow alerts feed never holds up the board.
+  void _maybeFetchAlerts() {
+    final client = _alertsClient, now = _clock(), last = _alertsAt;
+    if (client == null || (last != null && !now.difference(last).isNegative && now.difference(last) < alertsEvery)) {
+      return;
+    }
+    _alertsAt = now;
+    unawaited(() async {
+      try {
+        _alerts = await client.fetch();
+      } catch (_) {
+        return; // keep the last ones
+      }
+      if (!_disposed) notifyListeners();
+    }());
   }
 
   /// True once a realtime poll has answered or failed (no "Sin tiempo real" flash at launch).
@@ -263,10 +314,31 @@ class AppController extends ChangeNotifier {
   void toggleFilter(String dest) {
     final next = {...filters};
     if (!next.remove(dest)) next.add(dest);
+    _saveVia(null);
     _setFilters(next);
   }
 
-  void clearFilters() => _setFilters({});
+  void clearFilters() {
+    _saveVia(null);
+    _setFilters({});
+  }
+
+  /// Go to [stopId] (null clears it); destinations are dropped.
+  void setVia(String? stopId) {
+    _saveVia(stopId);
+    _setFilters({});
+  }
+
+  void _saveVia(String? stopId) {
+    via = stopId;
+    final s = station;
+    if (s == null) return;
+    if (stopId == null) {
+      _prefs.remove(_viaKey(s.id));
+    } else {
+      _prefs.setString(_viaKey(s.id), stopId);
+    }
+  }
 
   /// Show [pageSize] more trains, if the schedule has them.
   void loadMore() {
@@ -329,6 +401,7 @@ class AppController extends ChangeNotifier {
   tz.TZDateTime? _positionsAt;
 
   Future<void> _pollRt() async {
+    _maybeFetchAlerts();
     final now = _clock();
     final last = _positionsAt;
     final wantPositions = _positionsClient != null &&
@@ -411,7 +484,9 @@ class AppController extends ChangeNotifier {
     _prefs.setString(_lastStationKey, s.id);
     if (!provisional) _remember(s.id);
     if (!same) {
+      board = null; // never show (or hand the widget) the last station's trains under the new name
       filters = _savedFilters(s.id);
+      via = _prefs.getString(_viaKey(s.id));
       limit = pageSize;
     }
     feeds = const [];
@@ -470,7 +545,13 @@ class AppController extends ChangeNotifier {
   /// Drop saved destinations that no longer exist, once every núcleo of the station is loaded.
   void _reconcileFilters(IndexStop s) {
     final b = board;
-    if (b == null || filters.isEmpty || feeds.length < s.nucleos.length) return;
+    if (b == null || feeds.length < s.nucleos.length) return;
+    final v = via;
+    if (v != null && !b.reachable.any((r) => r.$1 == v)) {
+      _saveVia(null);
+      _recompute();
+    }
+    if (filters.isEmpty) return;
     final all = b.destinations.toSet(); // computed before the filter is applied
     final kept = filters.where(all.contains).toSet();
     if (kept.length != filters.length) _setFilters(kept);
@@ -482,6 +563,7 @@ class AppController extends ChangeNotifier {
         ? null
         : computeBoard(feeds, s.id, _clock(), rt,
             destinations: filters,
+            via: via,
             limit: limit,
             requiredNucleos: s.nucleos,
             livePlatforms: _livePlatformsAt(s.id, _clock()));

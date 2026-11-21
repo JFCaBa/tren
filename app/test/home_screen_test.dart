@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:proximotren/app_controller.dart';
+import 'dart:convert';
+
+import 'package:proximotren/data/alerts.dart';
 import 'package:proximotren/data/realtime.dart';
 import 'package:proximotren/follow/follow_logic.dart';
 import 'package:proximotren/follow/follow_tracker.dart';
@@ -38,6 +41,7 @@ void main() {
         await SharedPreferences.getInstance(),
         clock: () => tz.TZDateTime(tz.getLocation('Europe/Madrid'), 2026, 11, 15, 18, 0),
         periodic: TimerLog().create,
+        alerts: AlertsClient(server.client),
       );
 
   Future<AppController> started(WidgetTester tester) async {
@@ -121,6 +125,65 @@ void main() {
     await tester.pumpAndSettle();
     expect(c.filters, isEmpty);
     expect(find.text('→ València Nord'), findsWidgets);
+  });
+
+  testWidgets('Otra parada… picks a stop: chip, only trains that reach it, arrival time', (tester) async {
+    final c = await started(tester);
+    await show(tester, c);
+    await tester.ensureVisible(find.widgetWithText(ActionChip, 'Otra parada…'));
+    await tester.tap(find.widgetWithText(ActionChip, 'Otra parada…'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'gand');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ListTile, 'Gandia'));
+    await tester.pumpAndSettle();
+    expect(c.via, '69110');
+    expect(find.widgetWithText(FilterChip, '→ Gandia'), findsOneWidget);
+    expect(find.text('→ València Nord'), findsNothing);
+    expect(find.text('llega a Gandia 19:49'), findsOneWidget); // 19:40 scheduled + 9 min RT delay
+    await tester.tap(find.widgetWithText(FilterChip, 'Todos'));
+    await tester.pumpAndSettle();
+    expect(c.via, isNull);
+    expect(find.textContaining('llega a'), findsNothing);
+  });
+
+  testWidgets('Renfe alerts for the station and its lines: a line that opens them', (tester) async {
+    Map<String, dynamic> a(String text, Map<String, String> entity) => {
+          'activePeriod': [
+            {'start': '1'},
+          ],
+          'informedEntity': [entity],
+          'descriptionText': {
+            'translation': [
+              {'text': text, 'language': 'es'},
+            ],
+          },
+        };
+    server.alertsBody = jsonEncode({
+      'entity': [
+        {'id': '1', 'alert': a('#ValC1 Obras en la C1.', {'routeId': '40T0001C1'})},
+        {'id': '2', 'alert': a('Ascensor de Silla fuera de servicio.', {'stopId': '64200'})},
+        {'id': '3', 'alert': a('Otra estación.', {'stopId': '99999'})},
+      ],
+    });
+    final c = await started(tester);
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await show(tester, c);
+    expect(find.text('2 avisos de Renfe'), findsOneWidget);
+    await tester.tap(find.text('2 avisos de Renfe'));
+    await tester.pumpAndSettle();
+    expect(find.text('Avisos de Renfe'), findsOneWidget);
+    expect(find.text('Ascensor de Silla fuera de servicio.'), findsOneWidget);
+    expect(find.text('Obras en la C1.'), findsOneWidget);
+    expect(find.widgetWithText(Chip, 'C1'), findsOneWidget);
+    expect(find.text('Otra estación.'), findsNothing);
+  });
+
+  testWidgets('no alerts, or the feed fails: no alerts line', (tester) async {
+    final c = await started(tester); // alerts.json answers 404
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await show(tester, c);
+    expect(find.textContaining('aviso'), findsNothing);
   });
 
   testWidgets('scrolling to the end shows more trains', (tester) async {

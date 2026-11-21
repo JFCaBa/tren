@@ -163,3 +163,68 @@ class _PickerState extends State<_Picker> {
     );
   }
 }
+
+/// Stops of [reachable] ((stopId, name)) whose name contains [query], ignoring case, accents and
+/// punctuation; all of them for an empty query.
+List<(String, String)> searchReachable(List<(String, String)> reachable, String query) {
+  final q = _fold(query);
+  if (q.isEmpty) return reachable;
+  return [for (final r in reachable) if (_fold(r.$2).contains(q)) r];
+}
+
+/// Bottom sheet to choose where the user is going, among the stops this station reaches.
+/// Returns the stopId, or null when dismissed.
+Future<String?> pickReachableStop(BuildContext context, List<(String, String)> reachable) =>
+    showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
+        child: _ReachablePicker(reachable),
+      ),
+    );
+
+class _ReachablePicker extends StatefulWidget {
+  const _ReachablePicker(this.reachable);
+  final List<(String, String)> reachable;
+
+  @override
+  State<_ReachablePicker> createState() => _ReachablePickerState();
+}
+
+class _ReachablePickerState extends State<_ReachablePicker> {
+  late List<(String, String)> _shown = widget.reachable;
+
+  @override
+  Widget build(BuildContext context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.7,
+        builder: (ctx, scroll) => Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: TextField(
+              textInputAction: TextInputAction.search,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: '¿A qué parada vas?',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (q) => setState(() => _shown = searchReachable(widget.reachable, q)),
+            ),
+          ),
+          Expanded(
+            child: _shown.isEmpty
+                ? const Padding(padding: EdgeInsets.all(16), child: Text('Ninguna parada coincide'))
+                : ListView.builder(
+                    controller: scroll,
+                    itemCount: _shown.length,
+                    itemBuilder: (ctx, i) => ListTile(
+                      title: Text(shortStopName(_shown[i].$2)),
+                      onTap: () => Navigator.pop(ctx, _shown[i].$1),
+                    ),
+                  ),
+          ),
+        ]),
+      );
+}

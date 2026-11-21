@@ -222,12 +222,15 @@ class DepartureRow extends StatelessWidget {
           LineBadge(d.line, d.color),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              '→ ${shortStopName(d.dest)}',
-              style: theme.textTheme.bodyLarge?.copyWith(decoration: d.canceled ? TextDecoration.lineThrough : null),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                '→ ${shortStopName(d.dest)}',
+                style: theme.textTheme.bodyLarge?.copyWith(decoration: d.canceled ? TextDecoration.lineThrough : null),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (d.arrival != null && !d.canceled) ArrivalText(d.arrival!),
+            ]),
           ),
           const SizedBox(width: 8),
           if (followed)
@@ -325,6 +328,8 @@ class NextTrainCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (d.arrival != null && !d.canceled)
+                  Padding(padding: const EdgeInsets.only(top: 2), child: ArrivalText(d.arrival!)),
                 if (where != null && !d.canceled)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
@@ -346,6 +351,21 @@ class NextTrainCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// «llega a Sol 08:34»: when the train gets to where the user is going.
+class ArrivalText extends StatelessWidget {
+  const ArrivalText(this.arrival, {super.key});
+  final StopTime arrival;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Text('llega a ${shortStopName(arrival.name)} ${hhmm(arrival.time)}',
+        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis);
   }
 }
 

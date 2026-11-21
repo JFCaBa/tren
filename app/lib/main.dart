@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:http/http.dart' as http;
 import 'package:material_ui/material_ui.dart';
 import 'package:path_provider/path_provider.dart';
@@ -9,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 
 import 'app_controller.dart';
+import 'data/alerts.dart';
 import 'data/positions.dart';
 import 'data/realtime.dart';
 import 'data/train_client.dart';
@@ -20,6 +22,7 @@ import 'follow/push_follower.dart';
 import 'follow/push_token.dart';
 import 'location.dart';
 import 'ui/home_screen.dart';
+import 'widget/next_trains_widget.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,6 +37,7 @@ Future<void> main() async {
     GeolocatorLocationSource(),
     prefs,
     positions: PositionsClient(client),
+    alerts: AlertsClient(client),
   );
   // Android follows in a foreground service; iOS asks our server to follow and push.
   final Follower? follower = kIsWeb
@@ -45,6 +49,13 @@ Future<void> main() async {
                   client: client, prefs: prefs, push: const ChannelPushToken(), activity: ChannelLiveActivity())
               : null;
   final tracker = follower == null ? null : FollowTracker(follower: follower, fetch: TrainClient(client).fetch);
+  if (!kIsWeb && (Platform.isIOS || Platform.isAndroid)) {
+    if (Platform.isIOS) await HomeWidget.setAppGroupId(widgetAppGroup);
+    final publisher = WidgetPublisher();
+    // The home screen widget shows the board of the last station opened.
+    controller.addListener(() => publisher.publish(controller.station?.name, controller.board, controller.now(),
+        via: controller.via == null ? null : (controller.viaName ?? controller.via)));
+  }
   runApp(ProximoTrenApp(controller: controller, follower: follower, tracker: tracker));
 }
 

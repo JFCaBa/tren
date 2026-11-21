@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../app_controller.dart';
 import '../config.dart';
+import '../domain/alerts.dart';
 import '../domain/board.dart';
 import '../domain/position.dart';
 import '../follow/follow_logic.dart';
@@ -93,6 +94,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _pickVia(BuildContext context, List<(String, String)> reachable) async {
+    final id = await pickReachableStop(context, reachable);
+    if (id != null) controller.setVia(id);
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: Listenable.merge([controller, ?widget.follower, ?widget.tracker]),
@@ -119,13 +125,14 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     final theme = Theme.of(context);
     final board = c.board;
+    final alerts = c.stationAlerts;
     // The large card: the followed train when this board lists it, else the first train that runs
     // (canceled ones stay rows).
     final current = widget.follower?.current;
     final followedAt = board == null || current == null ? -1 : board.departures.indexWhere(current.matches);
     final next = board == null ? null : (followedAt >= 0 ? followedAt : nextTrainIndex(board.departures));
     // With a destination filter a long gap is only that destination's: not worth calling out.
-    bool gapAt(int i) => c.filters.isEmpty && startsAfterGap(board!.departures, i);
+    bool gapAt(int i) => c.filters.isEmpty && c.via == null && startsAfterGap(board!.departures, i);
     return RefreshIndicator(
       onRefresh: c.retry,
       child: ListView(
@@ -175,6 +182,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ]),
               ),
             ),
+            if (alerts.isNotEmpty) _AlertsLine(alerts),
             if (c.recentStations.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -198,8 +206,10 @@ class _HomeScreenState extends State<HomeScreen> {
               _FilterChips(
                 destinations: board.destinations,
                 selected: c.filters,
+                via: c.via == null ? null : (c.viaName ?? c.via),
                 onToggle: c.toggleFilter,
                 onClear: c.clearFilters,
+                onPickVia: board.reachable.isEmpty ? null : () => _pickVia(context, board.reachable),
               ),
               if (next != null) ...[
                 const SizedBox(height: 12),
@@ -317,18 +327,35 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _FilterChips extends StatelessWidget {
-  const _FilterChips({required this.destinations, required this.selected, required this.onToggle, required this.onClear});
+  const _FilterChips(
+      {required this.destinations,
+      required this.selected,
+      required this.via,
+      required this.onToggle,
+      required this.onClear,
+      required this.onPickVia});
   final List<String> destinations;
   final Set<String> selected;
+
+  /// Name of the chosen stop, if any.
+  final String? via;
   final void Function(String) onToggle;
   final VoidCallback onClear;
+
+  /// Opens the «Otra parada…» picker; null when the station reaches nowhere.
+  final VoidCallback? onPickVia;
 
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.only(top: 12),
         child: Row(children: [
-          FilterChip(label: const Text('Todos'), selected: selected.isEmpty, onSelected: (_) => onClear()),
+          FilterChip(label: const Text('Todos'), selected: selected.isEmpty && via == null, onSelected: (_) => onClear()),
+          if (via != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: FilterChip(label: Text('→ ${shortStopName(via!)}'), selected: true, onSelected: (_) => onClear()),
+            ),
           for (final d in destinations)
             Padding(
               padding: const EdgeInsets.only(left: 8),
@@ -338,9 +365,64 @@ class _FilterChips extends StatelessWidget {
                 onSelected: (_) => onToggle(d),
               ),
             ),
+          if (onPickVia != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: ActionChip(label: const Text('Otra parada…'), onPressed: onPickVia),
+            ),
         ]),
       );
 }
+
+/// «⚠ 2 avisos de Renfe» under the station; opens them all.
+class _AlertsLine extends StatelessWidget {
+  const _AlertsLine(this.alerts);
+  final List<StationAlert> alerts;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = lateColor(context);
+    final n = alerts.length;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        style: TextButton.styleFrom(
+            foregroundColor: color, padding: const EdgeInsets.symmetric(horizontal: 4), visualDensity: VisualDensity.compact),
+        onPressed: () => _showAlerts(context, alerts),
+        icon: const Icon(Icons.warning_amber_rounded, size: 18),
+        label: Text(n == 1 ? '1 aviso de Renfe' : '$n avisos de Renfe'),
+      ),
+    );
+  }
+}
+
+Future<void> _showAlerts(BuildContext context, List<StationAlert> alerts) => showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        builder: (ctx, scroll) => ListView(
+          controller: scroll,
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          children: [
+            Text('Avisos de Renfe', style: Theme.of(ctx).textTheme.titleLarge),
+            for (final a in alerts)
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  if (a.line != null) ...[
+                    Chip(label: Text(a.line!), visualDensity: VisualDensity.compact),
+                    const SizedBox(width: 8),
+                  ],
+                  Expanded(child: Text(a.text)),
+                ]),
+              ),
+          ],
+        ),
+      ),
+    );
 
 class _Banner extends StatelessWidget {
   const _Banner(this.text, {this.onRetry});

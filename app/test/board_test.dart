@@ -294,4 +294,82 @@ void main() {
     expect(old.feedStale, isTrue);
     expect(old.feedCoversToday, isFalse);
   });
+
+  group('via (Otra parada)', () {
+    const sueca = Stop(id: '69000', name: 'Sueca', lat: 39.2, lon: -0.3);
+    final stops = [nord, silla, gandia, sueca];
+    // O1: Nord → Silla → Sueca → Gandia; O2: Nord → Silla → Gandia (no Sueca).
+    Trip viaSueca(String id, int atSilla, {Set<String> dates = const {'2026-11-15'}}) => Trip(
+          id: id,
+          line: 'C1',
+          dest: 'Gandia',
+          dates: dates,
+          times: [('65000', atSilla - 900), ('64200', atSilla), ('69000', atSilla + 1200), ('69110', atSilla + 2700)],
+        );
+
+    test('only trains that stop at via after the station, with the arrival there', () {
+      final f = feedOf([viaSueca('O1', hm(18, 10)), out('O2', hm(18, 5)), inb('I1', hm(18, 1))], stops: stops);
+      final b = computeBoard([f], '64200', now(), null, via: '69000');
+      expect(b.departures.map((d) => d.tripId), ['O1']);
+      expect(b.departures.single.arrival!.stopId, '69000');
+      expect(b.departures.single.arrival!.name, 'Sueca');
+      expect(b.departures.single.arrival!.time, at(2026, 11, 15, 18, 30));
+    });
+
+    test('a train that only passes via before the station is not shown', () {
+      final f = feedOf([out('O1', hm(18, 10))], stops: stops);
+      expect(computeBoard([f], '64200', now(), null, via: '65000').departures, isEmpty);
+    });
+
+    test('arrival carries the live delay', () {
+      final f = feedOf([viaSueca('O1', hm(18, 10))], stops: stops);
+      final b = computeBoard([f], '64200', now(), rtOf({'O1': const RtTrip(delaySec: 300, canceled: false)}, now()),
+          via: '69000');
+      expect(b.departures.single.arrival!.time, at(2026, 11, 15, 18, 35));
+    });
+
+    test('circular trip: the first time at via after the station', () {
+      final loop = Trip(id: 'L1', line: 'C1', dest: 'Silla', dates: const {'2026-11-15'}, times: [
+        ('69000', hm(17, 50)),
+        ('64200', hm(18, 10)),
+        ('69000', hm(18, 20)),
+        ('69110', hm(18, 40)),
+        ('69000', hm(19, 0)),
+        ('64200', hm(19, 10)),
+      ]);
+      final b = computeBoard([feedOf([loop], stops: stops)], '64200', now(), null, via: '69000');
+      expect(b.departures.first.arrival!.time, at(2026, 11, 15, 18, 20));
+    });
+
+    test('via wins over destinations', () {
+      final f = feedOf([viaSueca('O1', hm(18, 10)), inb('I1', hm(18, 1))], stops: stops);
+      final b = computeBoard([f], '64200', now(), null, via: '69000', destinations: {'València Nord'});
+      expect(b.departures.map((d) => d.tripId), ['O1']);
+    });
+
+    test('a single destination shows the arrival there; two show none', () {
+      final f = feedOf([out('O1', hm(18, 10)), inb('I1', hm(18, 1))], stops: stops);
+      final one = computeBoard([f], '64200', now(), null, destinations: {'Gandia'});
+      expect(one.departures.single.arrival!.name, 'Gandia');
+      expect(one.departures.single.arrival!.time, at(2026, 11, 15, 18, 55));
+      final two = computeBoard([f], '64200', now(), null, destinations: {'Gandia', 'València Nord'});
+      expect(two.departures.every((d) => d.arrival == null), isTrue);
+      expect(computeBoard([f], '64200', now(), null).departures.every((d) => d.arrival == null), isTrue);
+    });
+
+    test('reachable: later stops of any trip on any day, by name, without the station', () {
+      final f = feedOf([
+        viaSueca('O1', hm(18, 10), dates: const {'2026-11-20'}), // not today
+        inb('I1', hm(18, 1)),
+      ], stops: stops);
+      final b = computeBoard([f], '64200', now(), null);
+      expect(b.reachable, [('69110', 'Gandia'), ('69000', 'Sueca'), ('65000', 'València Nord')]);
+    });
+
+    test('lines: every (nucleo, line) of trips that call here, whatever the filter', () {
+      final f = feedOf([out('O1', hm(18, 10)), inb('I1', hm(18, 1))], stops: stops);
+      final b = computeBoard([f], '64200', now(), null, destinations: {'Gandia'});
+      expect(b.lines, {('40', 'C1'), ('40', 'C2')});
+    });
+  });
 }

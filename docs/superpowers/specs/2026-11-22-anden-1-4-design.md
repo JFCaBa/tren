@@ -32,7 +32,7 @@ estación inaccesible. El texto de línea empieza con una etiqueta tipo `#MadC4a
 ### 2. Widget
 - iOS (WidgetKit, en la extensión existente `FollowActivity`) y Android (AppWidget), tamaño pequeño y
   mediano en iOS, uno de 4×2 en Android.
-- Muestra la última estación que abriste: nombre y los próximos trenes (2 en pequeño, 4 en mediano y
+- Muestra la última estación que abriste: nombre y los próximos trenes (3 en pequeño, 4 en mediano y
   Android): línea con su color, destino, hora y vía (rellena en vivo, con borde habitual, como en la app);
   el retraso en ámbar; los cancelados atenuados. Con destino o parada elegidos, respeta el filtro y
   muestra la hora de llegada en lugar del destino final cuando hay parada elegida.

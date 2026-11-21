@@ -480,6 +480,50 @@ void main() {
     expect(c.filters, {'Gandia'});
   });
 
+  group('via (Otra parada)', () {
+    test('setVia filters to trains that reach it, clears destinations and persists per station', () async {
+      final c = await startedAt(nearSilla);
+      c.toggleFilter('València-Estació del Nord');
+      c.setVia('69110');
+      expect(c.filters, isEmpty);
+      expect(c.via, '69110');
+      expect(c.viaName, 'Gandia');
+      expect(c.board!.departures.map((d) => d.tripId), ['T1']);
+      expect(c.board!.departures.single.arrival!.name, 'Gandia');
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('via_64200'), '69110');
+      expect(prefs.getString('filters_64200'), '[]');
+      final c2 = await startedAt(nearSilla);
+      expect(c2.via, '69110');
+    });
+
+    test('a destination chip or Todos clears via', () async {
+      final c = await startedAt(nearSilla);
+      c.setVia('69110');
+      c.toggleFilter('Gandia');
+      expect(c.via, isNull);
+      expect((await SharedPreferences.getInstance()).getString('via_64200'), isNull);
+      c.setVia('69110');
+      c.clearFilters();
+      expect(c.via, isNull);
+    });
+
+    test('a saved via the schedule no longer reaches is forgotten', () async {
+      SharedPreferences.setMockInitialValues({'via_64200': '99999'});
+      final c = await startedAt(nearSilla);
+      expect(c.via, isNull);
+      expect((await SharedPreferences.getInstance()).getString('via_64200'), isNull);
+    });
+
+    test('a saved via with no train today is kept', () async {
+      SharedPreferences.setMockInitialValues({'via_64200': '69110'});
+      clockNow = tz.TZDateTime(tz.getLocation('Europe/Madrid'), 2026, 11, 16, 18, 0); // T1 only runs on the 15th
+      final c = await startedAt(nearSilla);
+      expect(c.via, '69110');
+      expect(c.board!.departures, isEmpty);
+    });
+  });
+
   test('rt failure keeps board with rtStale', () async {
     server.rtFails = true;
     final c = await startedAt(nearSilla);

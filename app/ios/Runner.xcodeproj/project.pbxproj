@@ -23,6 +23,7 @@
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		BB417E2CB22AC678B0F7E6AC /* FollowActivityLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70290BCAB9906C5CB67A27D0 /* FollowActivityLiveActivity.swift */; };
 		D390EF9D4B54F2241BBE0477 /* TrainActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3C667D50F7156C2FCAD2559 /* TrainActivityAttributes.swift */; };
+		D8AB4CA6E6CB6770856791BC /* NextTrainsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35620AC27606F1A875984AC0 /* NextTrainsWidget.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,10 +68,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		104AC8F0CCCC13731BB31419 /* FollowActivity.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = FollowActivity.entitlements; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		35620AC27606F1A875984AC0 /* NextTrainsWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextTrainsWidget.swift; sourceTree = "<group>"; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
 		42ADE54A4D6554F6ABF3CF68 /* Runner.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
 		70290BCAB9906C5CB67A27D0 /* FollowActivityLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FollowActivityLiveActivity.swift; sourceTree = "<group>"; };
@@ -191,6 +194,8 @@
 				A77C26D5C0AE040E8805D584 /* FollowActivityBundle.swift */,
 				70290BCAB9906C5CB67A27D0 /* FollowActivityLiveActivity.swift */,
 				F3007C25F70539A6058DF07E /* Info.plist */,
+				35620AC27606F1A875984AC0 /* NextTrainsWidget.swift */,
+				104AC8F0CCCC13731BB31419 /* FollowActivity.entitlements */,
 			);
 			name = FollowActivity;
 			path = FollowActivity;
@@ -386,6 +391,7 @@
 				2F5FD3766347DADFB14C508F /* FollowActivityBundle.swift in Sources */,
 				BB417E2CB22AC678B0F7E6AC /* FollowActivityLiveActivity.swift in Sources */,
 				869DDC2B6DE0EB15CDA999A1 /* TrainActivityAttributes.swift in Sources */,
+				D8AB4CA6E6CB6770856791BC /* NextTrainsWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -442,6 +448,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = FollowActivity/FollowActivity.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = JH8NFJ6XW7;
@@ -594,6 +601,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = FollowActivity/FollowActivity.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = JH8NFJ6XW7;
@@ -783,6 +791,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = FollowActivity/FollowActivity.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = JH8NFJ6XW7;
