@@ -34,6 +34,7 @@
 1. Copiar el enlace de participación (Prueba cerrada → Alpha → Testers → "Join on Android / on the web") y mandarlo a los probadores.
 2. Cada probador tiene que **aceptar** la invitación con el enlace e instalar la app desde Play.
 3. Los 14 días cuentan desde que hay **≥ 12 probadores inscritos** y deben ser seguidos. Se sigue en el Panel → "Closed testing" (contador de probadores y días).
+   - 21-11-2026: 2 probadores inscritos en Android; el usuario espera llegar a 12 la semana del 23-11-2026.
 4. Pasados los 14 días: Panel → "Apply for production" (responde a unas preguntas sobre la prueba), y después crear la versión de producción.
 
 ## Vía (1.1)
