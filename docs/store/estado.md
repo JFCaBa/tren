@@ -51,3 +51,10 @@
 - Play: Alpha 15 (1.3.0) guardada con notas es-ES; declaración FGS dataSync (Network processing → Other, vídeo
   https://youtube.com/shorts/1Nkh9f6hwvY). Enviada a revisión por el usuario (21-11-2026).
 - Servidor de seguimiento: https://api.whatplatform.uk/anden/ (contenedor en el VPS, `tren/server/`).
+
+## 1.4.0 (16) — llegada, widget, avisos de Renfe (21-11-2026)
+
+- Código en main (24635ed). iOS build 16 subido a App Store Connect (App Group `group.com.jfcaba.proximotren` en app y
+  extensión). AAB 1.4.0 (16) en `app/build/app/outputs/bundle/release/app-release.aab`.
+- Pendiente: probar el widget en iPhone (TestFlight); enviar 1.4 cuando Apple y Google aprueben la 1.3 (no
+  reiniciar sus revisiones). Novedades en listing-es.md.
