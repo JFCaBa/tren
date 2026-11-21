@@ -44,9 +44,9 @@
 
 ## 1.3.0 (15) — seguir un tren (21-11-2026)
 
-- iOS: build 15 subido a App Store Connect (incluye aps-environment y la extensión FollowActivity). Pendiente: prueba en
-  iPhone por TestFlight (Live Activity y avisos con la app cerrada), versión 1.3.0 en ASC con el build 15, App Privacy
-  «Device ID · Not Linked · App Functionality» y notas de revisión.
+- iOS: build 15 probado en iPhone por el usuario (Live Activity y avisos OK). ASC 1.3.0 guardada con build 15, novedades,
+  descripción con «Sigue tu tren» y notas de revisión 1.3.0 (review-notes-en.md). App Privacy «Device ID · Not Linked ·
+  App Functionality · no tracking» rellenada; el usuario pulsa Publish y luego «Add for Review» / enviar.
 - Play: Alpha 15 (1.3.0) guardada con notas es-ES; declaración FGS dataSync (Network processing → Other, vídeo
-  https://youtube.com/shorts/1Nkh9f6hwvY). Publishing overview: «Submit 1 change for review» lo pulsa el usuario.
+  https://youtube.com/shorts/1Nkh9f6hwvY). Enviada a revisión por el usuario (21-11-2026).
 - Servidor de seguimiento: https://api.whatplatform.uk/anden/ (contenedor en el VPS, `tren/server/`).

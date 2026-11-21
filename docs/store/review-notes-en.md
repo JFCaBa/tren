@@ -1,5 +1,42 @@
 # Andén: notes for App Review
 
+## 1.3.0
+
+Paste into App Store Connect → Andén → version 1.3.0 → App Review Information → Notes (limit 4000 characters).
+
+---
+
+1. PURPOSE AND AUDIENCE
+Andén answers one question for commuters on Spain's suburban rail (Renfe Cercanías): "how long until my train?". It opens on the nearest station and lists the next departures with real-time delays and cancellations. Non-commercial: free, no ads, no in-app purchases, no analytics, no accounts.
+
+2. HOW TO USE IT
+No account is needed. The interface is in Spanish.
+- Open the app. With location allowed it shows the nearest station; otherwise (or outside Spain) tap "Elegir estación" and pick e.g. "Atocha" in the Madrid group. Tap the station name to change station or search by name.
+- The next train is in a large card; platforms ("vía") are filled when live, outlined when usual. Delays show the scheduled time struck out; canceled trains are dimmed.
+- Tap a train to see its stops. Destination chips filter the board. "Ver más" loads more trains.
+- NEW IN 1.3, follow a train: long-press any train (or tap it, then "Seguir este tren"). A bar says "Siguiendo …" with "Deshacer" (undo); the train moves to the large card with a bell and a line saying where it is (e.g. "En Getafe Centro · a 3 paradas"). On iOS 16.1+ a Live Activity shows on the Lock Screen and Dynamic Island with countdown, delay status, platform and position. The app asks for notification permission the first time. While followed, a notification is sent if the platform appears or changes, the delay changes by 2 minutes or more, or the train is canceled, also with the app closed. Long-press again (or "Dejar de seguir") to stop; following ends 2 minutes after the train leaves. One train at a time. Alerts depend on what Renfe publishes live, so a train without changes shows only the Live Activity.
+- Looking at another station while following, a "Tu tren" strip at the top keeps showing it.
+- Between about 00:00 and 05:00 Spanish time there is no service; the board shows the first morning trains.
+
+3. EXTERNAL SERVICES
+- Renfe open data: timetable (GTFS), real-time delays (gtfsrt.renfe.com/trip_updates.json) and vehicle positions (gtfsrt.renfe.com/vehicle_positions.json), read directly by the app.
+- GitHub Pages (jfcaba.github.io/tren): timetable files built from Renfe's GTFS, support and privacy pages.
+- Our follow service (api.whatplatform.uk/anden), only while a train is followed on iPhone: the app sends the train id, station, scheduled time, its stops and the APNs push token (and Live Activity token); the service polls Renfe's real-time data and sends alerts and Live Activity updates via Apple Push Notification service. Tokens are kept in memory only, never logged, deleted when following ends. No personal data, account or location is sent.
+- Apple Core Location, on the device only, to find the nearest station; never sent anywhere.
+No authentication, payment, advertising, analytics or AI services.
+
+4. REGIONAL DIFFERENCES
+Same in every region. Content covers Spanish stations only; choosing a station by hand works everywhere.
+
+5. THIRD-PARTY MATERIAL
+Not a regulated industry; non-commercial. Independent, unofficial app with no relationship to Renfe (stated in the description); no Renfe logos or trademarks.
+All data comes from Renfe open data under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/):
+- https://data.renfe.com/dataset/horarios-cercanias
+- https://data.renfe.com/dataset/horarios-viaje-cercanias
+- https://data.renfe.com/dataset/ubicacion-vehiculos
+Reuse terms: https://data.renfe.com/legal
+The app credits the source on its main screen ("Datos: Renfe") and on its support and privacy pages.
+
 ## 1.2.0
 
 Paste into App Store Connect → Andén → version 1.2.0 → App Review Information → Notes.
