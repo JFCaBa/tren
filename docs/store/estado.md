@@ -41,3 +41,12 @@
 - Recolector `platforms.yml` cada 10 min → rama `platform-data` (`platforms.json` + copia diaria `platforms-prev.json`). Si falla, GitHub avisa por email.
 - Vía habitual: necesita ≥ 2 días de observaciones; a partir del 18-11 empiezan a aparecer, útil en ~2 semanas.
 - Vigilar: tamaño de `platforms.json` (varios MB previstos) y de los feeds (+~10 % con cobertura completa).
+
+## 1.3.0 (15) — seguir un tren (21-11-2026)
+
+- iOS: build 15 subido a App Store Connect (incluye aps-environment y la extensión FollowActivity). Pendiente: prueba en
+  iPhone por TestFlight (Live Activity y avisos con la app cerrada), versión 1.3.0 en ASC con el build 15, App Privacy
+  «Device ID · Not Linked · App Functionality» y notas de revisión.
+- Play: Alpha 15 (1.3.0) guardada con notas es-ES; declaración FGS dataSync (Network processing → Other, vídeo
+  https://youtube.com/shorts/1Nkh9f6hwvY). Publishing overview: «Submit 1 change for review» lo pulsa el usuario.
+- Servidor de seguimiento: https://api.whatplatform.uk/anden/ (contenedor en el VPS, `tren/server/`).
