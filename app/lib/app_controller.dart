@@ -18,6 +18,11 @@ import 'location.dart';
 
 const _lastStationKey = 'last_station';
 const _recentKey = 'recent_stations';
+const _seenPlatformsKey = 'seen_platforms';
+
+/// Renfe shows a platform only while the train arrives, and sometimes drops it while the train
+/// stands there: once seen, it is kept this long (the board shows it only within 15 min anyway).
+const rememberPlatformFor = Duration(minutes: 20);
 
 /// Recent stations offered as shortcuts, besides the current one.
 const recentShown = 3;
@@ -82,6 +87,55 @@ class AppController extends ChangeNotifier {
 
   /// Last live platforms from Renfe; kept across failed polls, shown while fresh.
   PlatformSnapshot? positions;
+
+  /// `stopId|tripId` -> platform seen live and when; survives restarts via prefs.
+  late final Map<String, ({String platform, DateTime at})> _seenPlatforms = _loadSeenPlatforms();
+
+  Map<String, ({String platform, DateTime at})> _loadSeenPlatforms() {
+    try {
+      final raw = jsonDecode(_prefs.getString(_seenPlatformsKey) ?? '{}') as Map<String, dynamic>;
+      return {
+        for (final e in raw.entries)
+          if (e.value case [String p, String at] when DateTime.tryParse(at) != null)
+            e.key: (platform: p, at: DateTime.parse(at)),
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Keeps the current station's platforms from a new snapshot, stamped with Renfe's own time,
+  /// so a later restart knows how old each one is.
+  void _rememberPlatforms(PlatformSnapshot snap, String stopId, DateTime now) {
+    var changed = false;
+    platformsAt(snap, stopId, now).forEach((trip, platform) {
+      final key = '$stopId|$trip';
+      final at = snap.byTrip[trip]!.at;
+      final old = _seenPlatforms[key];
+      if (old == null || old.platform != platform || old.at != at) {
+        _seenPlatforms[key] = (platform: platform, at: at);
+        changed = true;
+      }
+    });
+    final before = _seenPlatforms.length;
+    _seenPlatforms.removeWhere((_, v) => now.difference(v.at).abs() > rememberPlatformFor);
+    if (changed || _seenPlatforms.length != before) {
+      _prefs.setString(_seenPlatformsKey, jsonEncode({
+        for (final e in _seenPlatforms.entries) e.key: [e.value.platform, e.value.at.toUtc().toIso8601String()],
+      }));
+    }
+  }
+
+  /// Live platforms at [stopId]: fresh ones from Renfe, else the last one seen recently.
+  Map<String, String> _livePlatformsAt(String stopId, DateTime now) {
+    final prefix = '$stopId|';
+    return {
+      for (final e in _seenPlatforms.entries)
+        if (e.key.startsWith(prefix) && now.difference(e.value.at).abs() <= rememberPlatformFor)
+          e.key.substring(prefix.length): e.value.platform,
+      ...platformsAt(positions, stopId, now),
+    };
+  }
 
   /// True once a realtime poll has answered or failed (no "Sin tiempo real" flash at launch).
   bool rtAttempted = false;
@@ -294,7 +348,11 @@ class AppController extends ChangeNotifier {
           try {
             final p = await _positionsClient.fetch();
             final last = positions;
-            if (last == null || !p.feedTimestamp.isBefore(last.feedTimestamp)) positions = p; // drop out-of-order answers
+            if (last == null || !p.feedTimestamp.isBefore(last.feedTimestamp)) {
+              positions = p; // drop out-of-order answers
+              final s = station;
+              if (s != null) _rememberPlatforms(p, s.id, _clock());
+            }
           } catch (_) {
             // Keep the last snapshot; platformsAt hides it once stale.
           }
@@ -426,7 +484,7 @@ class AppController extends ChangeNotifier {
             destinations: filters,
             limit: limit,
             requiredNucleos: s.nucleos,
-            livePlatforms: platformsAt(positions, s.id, _clock()));
+            livePlatforms: _livePlatformsAt(s.id, _clock()));
     if (!_disposed) notifyListeners();
   }
 }

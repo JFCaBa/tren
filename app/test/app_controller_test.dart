@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -124,7 +125,7 @@ void main() {
       expect(t2(c)!.livePlatform, isNull);
     });
 
-    test('positions failure keeps the last live platform until it is stale', () async {
+    test('positions failure keeps the last live platform', () async {
       clockNow = minute(18, 56);
       server.positionsBody = positionsJson('T2', '64200', '2', clockNow);
       final c = await startedAt(nearSilla);
@@ -140,7 +141,73 @@ void main() {
       clockNow = minute(18, 59);
       timers.timers.last.fire();
       await settle();
-      expect(t2(c)!.livePlatform, isNull);
+      expect(t2(c)!.livePlatform, '2', reason: 'a platform once seen stays until the train leaves');
+    });
+
+    test('a platform Renfe stops reporting is remembered, also after a restart', () async {
+      clockNow = minute(18, 56);
+      server.positionsBody = positionsJson('T2', '64200', '2', clockNow);
+      final c = await startedAt(nearSilla);
+      timers.timers.last.fire();
+      await settle();
+      expect(t2(c)!.livePlatform, '2');
+      // Renfe drops the label while the train stands at the platform.
+      clockNow = minute(18, 58);
+      server.positionsBody = jsonEncode({
+        'header': {'timestamp': '${clockNow.millisecondsSinceEpoch ~/ 1000}'},
+        'entity': [],
+      });
+      timers.timers.last.fire();
+      await settle();
+      expect(t2(c)!.livePlatform, '2');
+      c.dispose();
+      // The app is closed and opened again.
+      final again = await startedAt(nearSilla);
+      expect(t2(again)!.livePlatform, '2');
+    });
+
+    test('a newer sighting replaces the remembered platform', () async {
+      clockNow = minute(18, 56);
+      server.positionsBody = positionsJson('T2', '64200', '2', clockNow);
+      final c = await startedAt(nearSilla);
+      timers.timers.last.fire();
+      await settle();
+      clockNow = minute(18, 57);
+      server.positionsBody = positionsJson('T2', '64200', '4', clockNow);
+      timers.timers.last.fire();
+      await settle();
+      expect(t2(c)!.livePlatform, '4');
+    });
+
+    test('a remembered platform is forgotten after 20 minutes', () async {
+      Future<Departure?> t2SeenAt(tz.TZDateTime seen) async {
+        SharedPreferences.setMockInitialValues({
+          'seen_platforms': jsonEncode({'64200|T2': ['2', seen.toUtc().toIso8601String()]}),
+        });
+        server.positionsFails = true;
+        clockNow = minute(18, 56);
+        return t2(await startedAt(nearSilla));
+      }
+
+      expect((await t2SeenAt(minute(18, 40)))!.livePlatform, '2');
+      final old = await t2SeenAt(minute(18, 35));
+      expect(old, isNotNull, reason: 'the train is still on the board');
+      expect(old!.livePlatform, isNull);
+    });
+
+    test('seeing the same platform again renews when it was seen', () async {
+      clockNow = minute(18, 56);
+      server.positionsBody = positionsJson('T2', '64200', '2', clockNow);
+      final c = await startedAt(nearSilla);
+      timers.timers.last.fire();
+      await settle();
+      clockNow = minute(18, 57);
+      server.positionsBody = positionsJson('T2', '64200', '2', clockNow);
+      timers.timers.last.fire();
+      await settle();
+      expect(c.board, isNotNull);
+      final saved = jsonDecode((await SharedPreferences.getInstance()).getString('seen_platforms')!) as Map;
+      expect(saved['64200|T2'], ['2', clockNow.toUtc().toIso8601String()]);
     });
 
     test('older positions response is ignored', () async {
