@@ -1,11 +1,11 @@
 name: platforms
 
-# Every 10 minutes, record which platform (vía) trains use, from Renfe's live vehicle positions.
+# Record which platform (vía) trains use, from Renfe's live vehicle positions.
 # The observations live in platforms.json on the orphan branch `platform-data`, kept as a single
 # amended commit so main's history stays clean; the nightly feed build reads it from there.
+# Manual only: the VPS collects every minute (pipeline/vps/README.md); GitHub's schedule ran it
+# only a few times a day. Do not run this while the VPS collector is active.
 on:
-  schedule:
-    - cron: "*/10 * * * *"
   workflow_dispatch:
 
 permissions:
