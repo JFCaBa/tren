@@ -65,3 +65,9 @@
   (iOS cuando lo decide el sistema, pedido cada 15 min; Android con WorkManager cada 15 min) y la app le deja 60
   trenes. Sin abrir Andén en un día se acaban los trenes. La vía la sigue poniendo la app.
 - Sustituye a las builds 16 y 17 para enviar la 1.4 (misma versión, mismas novedades). Widget pequeño: solo línea y hora (4 trenes).
+
+## 1.4.0 (19) — botón ⓘ con versión, datos y privacidad (22-11-2026)
+
+- iOS build 19 subido a App Store Connect. AAB 1.4.0 (19) subido por el usuario a una release nueva de Alpha
+  ("19 (1.4.0)", notas es-ES de la 1.4), guardada como borrador. Falta: Next y enviar a revisión (usuario).
+  Sustituye a la 18 para enviar la 1.4.
