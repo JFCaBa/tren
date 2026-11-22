@@ -69,5 +69,5 @@
 ## 1.4.0 (19) — botón ⓘ con versión, datos y privacidad (22-11-2026)
 
 - iOS build 19 subido a App Store Connect. AAB 1.4.0 (19) subido por el usuario a una release nueva de Alpha
-  ("19 (1.4.0)", notas es-ES de la 1.4), guardada como borrador. Falta: Next y enviar a revisión (usuario).
+  ("19 (1.4.0)", notas es-ES de la 1.4), enviada a revisión por el usuario el 22-11-2026.
   Sustituye a la 18 para enviar la 1.4.
