@@ -92,17 +92,44 @@ private struct TrainRow: View {
     return m < 60 ? "\(m) min" : hhmm(train.departure)
   }
 
+  private var late: Bool { (train.delayMin ?? 0) >= 3 && !train.canceled }
+
+  private var badge: some View {
+    Text(train.line)
+      .font(.caption.weight(.bold))
+      .lineLimit(1)
+      .fixedSize()
+      .padding(.horizontal, 5)
+      .padding(.vertical, 1)
+      .background(RoundedRectangle(cornerRadius: 4).fill(Color(argb: train.color)))
+      .foregroundStyle(onColor(train.color))
+  }
+
   var body: some View {
+    if compact {
+      // Pequeño: solo línea y hora; el cancelado, tachado y atenuado.
+      HStack(spacing: 6) {
+        badge
+        Spacer(minLength: 2)
+        Text(hhmm(train.departure))
+          .font(.subheadline.weight(.semibold))
+          .monospacedDigit()
+          .strikethrough(train.canceled)
+          .fixedSize()
+          .foregroundStyle(late ? amber : Color.primary)
+      }
+      .opacity(train.canceled ? 0.5 : 1)
+    } else {
+      full
+    }
+  }
+
+  private var full: some View {
     HStack(spacing: 6) {
-      Text(train.line)
-        .font(.caption.weight(.bold))
-        .padding(.horizontal, 5)
-        .padding(.vertical, 1)
-        .background(RoundedRectangle(cornerRadius: 4).fill(Color(argb: train.color)))
-        .foregroundStyle(onColor(train.color))
+      badge
       VStack(alignment: .leading, spacing: 0) {
         Text(train.dest).font(.caption).lineLimit(1)
-        if let a = train.arrival, !compact {
+        if let a = train.arrival {
           Text("llega \(hhmm(a))").font(.caption2).foregroundStyle(.secondary)
         }
       }
@@ -110,6 +137,7 @@ private struct TrainRow: View {
       if let p = train.platform, !train.canceled {
         Text(p)
           .font(.caption2.weight(.bold))
+          .fixedSize()
           .padding(.horizontal, 4)
           .background(
             RoundedRectangle(cornerRadius: 4)
@@ -120,7 +148,8 @@ private struct TrainRow: View {
       Text(wait)
         .font(.caption.weight(.semibold))
         .monospacedDigit()
-        .foregroundStyle((train.delayMin ?? 0) >= 3 && !train.canceled ? amber : Color.primary)
+        .fixedSize()
+        .foregroundStyle(late ? amber : Color.primary)
     }
     .opacity(train.canceled ? 0.5 : 1)
   }
@@ -131,7 +160,7 @@ struct NextTrainsView: View {
   let entry: NextTrainsEntry
 
   var body: some View {
-    let max = family == .systemSmall ? 3 : 4
+    let max = 4
     let trains = entry.trains
     VStack(alignment: .leading, spacing: 4) {
       if let b = entry.board {
