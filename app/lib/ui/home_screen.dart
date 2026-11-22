@@ -10,6 +10,7 @@ import '../domain/position.dart';
 import '../follow/follow_logic.dart';
 import '../follow/follow_tracker.dart';
 import '../follow/follower.dart';
+import 'about_sheet.dart';
 import 'departure_row.dart';
 import 'names.dart';
 import 'station_picker.dart';
@@ -159,29 +160,38 @@ class _HomeScreenState extends State<HomeScreen> {
               ]),
             )
           else ...[
-            InkWell(
-              onTap: () => _pick(context),
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(children: [
-                  Icon(c.manualStation ? Icons.place_outlined : Icons.my_location, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(shortStopName(c.station!.name),
-                          style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-                          overflow: TextOverflow.ellipsis),
-                      Text(c.station!.nucleos.map((n) => c.nucleoName(n) ?? n).join(' · '),
-                          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-                      if (board != null) ?_liveStatus(context, board),
+            Row(children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () => _pick(context),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(children: [
+                      Icon(c.manualStation ? Icons.place_outlined : Icons.my_location, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(shortStopName(c.station!.name),
+                              style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+                              overflow: TextOverflow.ellipsis),
+                          Text(c.station!.nucleos.map((n) => c.nucleoName(n) ?? n).join(' · '),
+                              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                          if (board != null) ?_liveStatus(context, board),
+                        ]),
+                      ),
+                      if (c.distanceMeters != null) Text(_distance(c.distanceMeters!), style: theme.textTheme.bodyMedium),
+                      const Icon(Icons.expand_more),
                     ]),
                   ),
-                  if (c.distanceMeters != null) Text(_distance(c.distanceMeters!), style: theme.textTheme.bodyMedium),
-                  const Icon(Icons.expand_more),
-                ]),
+                ),
               ),
-            ),
+              IconButton(
+                icon: const Icon(Icons.info_outline),
+                tooltip: 'Información',
+                onPressed: () => showAboutSheet(context, onPrivacy: () => _openPrivacy(context)),
+              ),
+            ]),
             if (alerts.isNotEmpty) _AlertsLine(alerts),
             if (c.recentStations.isNotEmpty)
               Padding(

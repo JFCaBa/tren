@@ -44,6 +44,7 @@ dependencies:
   flutter_foreground_task: ^11.0.3
   flutter_local_notifications: ^23.0.2
   home_widget: ^0.10.0
+  package_info_plus: ^10.2.2
 
 dev_dependencies:
   flutter_test:

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:proximotren/app_controller.dart';
 import 'dart:convert';
 
@@ -110,6 +111,22 @@ void main() {
     await tester.tap(find.text('Privacidad'));
     await tester.pump();
     expect(find.text('No se pudo abrir la política de privacidad'), findsOneWidget);
+  });
+
+  testWidgets('the info button shows version, data source and privacy without scrolling', (tester) async {
+    PackageInfo.setMockInitialValues(
+        appName: 'Andén', packageName: 'com.jfcaba.proximotren', version: '1.4.0', buildNumber: '18', buildSignature: '');
+    final c = await started(tester);
+    final opened = <Uri>[];
+    await tester.pumpWidget(MaterialApp(home: HomeScreen(controller: c, openUrl: (u) async => opened.add(u))));
+    await tester.tap(find.byTooltip('Información'));
+    await tester.pumpAndSettle();
+    expect(find.text('Versión 1.4.0 (18)'), findsOneWidget);
+    expect(find.text('Datos: Renfe'), findsWidgets);
+    await tester.tap(find.text('Política de privacidad'));
+    await tester.pumpAndSettle();
+    expect(opened, [Uri.parse('https://jfcaba.github.io/tren/privacidad.html')]);
+    expect(find.text('Versión 1.4.0 (18)'), findsNothing);
   });
 
   testWidgets('tapping a chip filters the list', (tester) async {
