@@ -1,6 +1,9 @@
 package com.jfcaba.proximotren
 
 import android.content.Context
+import android.util.Log
+import androidx.work.Constraints
+import androidx.work.NetworkType
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -15,15 +18,18 @@ import java.net.URL
 import java.util.concurrent.TimeUnit
 
 /**
- * Cada 15 min, con el widget puesto: descarga el tiempo real de Renfe, lo guarda y repinta el widget.
- * Sin red repinta igual, para que los retrasos viejos caduquen y los trenes salidos se vayan.
+ * Cada 15 min, con el widget puesto y red: descarga el tiempo real de Renfe, lo guarda y repinta el
+ * widget. Necesita declarar la red: en segundo plano Android corta la red a los trabajos que no lo
+ * hacen. Sin red no corre; los retrasos viejos caducan igual con la alarma de salida y el refresco
+ * de 30 min del widget, que vuelven a calcular con la hora.
  */
 class NextTrainsRtWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
   override fun doWork(): Result {
     try {
       fetch()?.let { save(applicationContext, it) }
-    } catch (_: Exception) {
-      // Sin red o Renfe caído: se queda el último guardado.
+    } catch (e: Exception) {
+      // Renfe caído o sin datos: se queda el último guardado.
+      Log.w("Anden", "widget real time: ${e.javaClass.simpleName}")
     }
     NextTrainsWidgetProvider.refresh(applicationContext)
     return Result.success()
@@ -50,15 +56,19 @@ class NextTrainsRtWorker(context: Context, params: WorkerParameters) : Worker(co
     private const val PREFS = "HomeWidgetPreferences" // las de home_widget, donde está el snapshot
     private const val KEY = "widget_rt"
 
-    /** Deja programada la descarga periódica (si ya lo está, no hace nada). */
+    private val online = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+
+    /** Deja programada la descarga periódica. UPDATE (no KEEP): cambia la de una versión anterior sin reiniciar su plazo. */
     fun ensureScheduled(context: Context) {
       WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-        PERIODIC, ExistingPeriodicWorkPolicy.KEEP, PeriodicWorkRequestBuilder<NextTrainsRtWorker>(15, TimeUnit.MINUTES).build())
+        PERIODIC, ExistingPeriodicWorkPolicy.UPDATE,
+        PeriodicWorkRequestBuilder<NextTrainsRtWorker>(15, TimeUnit.MINUTES).setConstraints(online).build())
     }
 
     /** Una descarga ya, al añadir el widget (la periódica tarda 15 min en la primera). */
     fun runNow(context: Context) {
-      WorkManager.getInstance(context).enqueueUniqueWork(NOW, ExistingWorkPolicy.KEEP, OneTimeWorkRequestBuilder<NextTrainsRtWorker>().build())
+      WorkManager.getInstance(context).enqueueUniqueWork(
+        NOW, ExistingWorkPolicy.KEEP, OneTimeWorkRequestBuilder<NextTrainsRtWorker>().setConstraints(online).build())
     }
 
     fun cancel(context: Context) {
