@@ -53,8 +53,8 @@ Future<void> main() async {
     if (Platform.isIOS) await HomeWidget.setAppGroupId(widgetAppGroup);
     final publisher = WidgetPublisher();
     // The home screen widget shows the board of the last station opened.
-    controller.addListener(() => publisher.publish(controller.station?.name, controller.board, controller.now(),
-        via: controller.via == null ? null : (controller.viaName ?? controller.via)));
+    controller.addListener(() => publisher.publish(controller.station?.name, controller.widgetBoard, controller.now(),
+        via: controller.via == null ? null : (controller.viaName ?? controller.via), rtAt: controller.rt?.fetchedAt));
   }
   runApp(ProximoTrenApp(controller: controller, follower: follower, tracker: tracker));
 }

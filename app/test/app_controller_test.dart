@@ -497,6 +497,15 @@ void main() {
       expect(c2.via, '69110');
     });
 
+    test('the widget board keeps the stop chosen and has more trains than the list', () async {
+      final c = await startedAt(nearSilla);
+      expect(c.widgetBoard!.departures.length, greaterThanOrEqualTo(c.board!.departures.length));
+      c.setVia('69110');
+      expect(c.widgetBoard!.departures.map((d) => d.tripId), ['T1']);
+      c.clearFilters();
+      expect(c.widgetBoard!.departures.length, greaterThan(1));
+    });
+
     test('a destination chip or Todos clears via', () async {
       final c = await startedAt(nearSilla);
       c.setVia('69110');

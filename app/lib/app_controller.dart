@@ -17,6 +17,7 @@ import 'domain/alerts.dart';
 import 'domain/board.dart';
 import 'domain/nearest.dart';
 import 'location.dart';
+import 'widget/next_trains_widget.dart' show widgetTrains;
 
 const _lastStationKey = 'last_station';
 const _recentKey = 'recent_stations';
@@ -557,7 +558,30 @@ class AppController extends ChangeNotifier {
     if (kept.length != filters.length) _setFilters(kept);
   }
 
+  Board? _widgetBoard;
+  bool _widgetBoardDirty = true;
+
+  /// The board with [widgetTrains] trains for the home screen widget (same station, filters and
+  /// stop); computed only when asked, once per change.
+  Board? get widgetBoard {
+    if (board == null) return null; // e.g. right after a station change
+    if (_widgetBoardDirty) {
+      final s = station;
+      _widgetBoard = s == null
+          ? null
+          : computeBoard(feeds, s.id, _clock(), rt,
+              destinations: filters,
+              via: via,
+              limit: widgetTrains,
+              requiredNucleos: s.nucleos,
+              livePlatforms: _livePlatformsAt(s.id, _clock()));
+      _widgetBoardDirty = false;
+    }
+    return _widgetBoard;
+  }
+
   void _recompute() {
+    _widgetBoardDirty = true;
     final s = station;
     board = (s == null || (feeds.isEmpty && !_feedsSettled))
         ? null

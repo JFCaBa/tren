@@ -11,8 +11,13 @@ const widgetDataKey = 'next_trains';
 const iosWidgetKind = 'NextTrainsWidget';
 const androidWidgetProvider = 'NextTrainsWidgetProvider';
 
-/// Trains handed to the widget: it drops those that have left and shows up to 4.
-const widgetTrains = 8;
+/// Trains handed to the widget, so it keeps going for hours without the app: it drops those that
+/// have left and shows up to 4.
+const widgetTrains = 60;
+
+/// Even unchanged, the data is written again after this long, with the time of the app's latest
+/// real time: the widget trusts the app's delays only while that is recent.
+const widgetRewriteEvery = Duration(minutes: 5);
 
 int _epoch(DateTime t) => t.millisecondsSinceEpoch ~/ 1000;
 
@@ -27,13 +32,14 @@ Map<String, Object?> widgetSnapshot(String station, Board board, DateTime now, {
             'line': d.line,
             'color': d.color,
             'dest': shortStopName(d.dest),
-            'dep': _epoch(d.estimated),
+            // Scheduled times: the widget adds the delay it trusts (its own real time or this one).
             'sched': _epoch(d.scheduled),
-            'delayMin': d.delaySec == null ? null : (d.delaySec! / 60).round(),
+            'arrSched': d.arrival == null ? null : _epoch(d.arrival!.time.subtract(Duration(seconds: d.delaySec ?? 0))),
+            'delaySec': d.delaySec,
+            'canceled': d.canceled,
             'platform': d.livePlatform ?? d.usualPlatform,
             'live': d.livePlatform != null,
-            'canceled': d.canceled,
-            'arrival': d.arrival == null ? null : _epoch(d.arrival!.time),
+            'rt': d.realtimeById ? d.tripId : null,
           },
       ],
     };
@@ -45,21 +51,32 @@ class WidgetPublisher {
 
   final Future<void> Function(String json) _write;
   String? _last;
+  DateTime? _lastAt;
 
   static Future<void> _homeWidgetWrite(String json) async {
     await HomeWidget.saveWidgetData<String>(widgetDataKey, json);
     await HomeWidget.updateWidget(iOSName: iosWidgetKind, androidName: androidWidgetProvider);
   }
 
-  Future<void> publish(String? station, Board? board, DateTime now, {String? via}) async {
+  /// [rtAt]: when the real time the board used was downloaded. The widget weighs the delays it
+  /// is handed by this, not by when they were written: a board computed offline carries none
+  /// and must not hide the widget's own, newer real time.
+  Future<void> publish(String? station, Board? board, DateTime now, {String? via, DateTime? rtAt}) async {
     if (station == null || board == null) return;
     final snap = widgetSnapshot(station, board, now, via: via);
     if ((snap['trains'] as List).isEmpty) return;
-    final key = jsonEncode(snap);
-    if (key == _last) return;
+    final usedRt = !board.rtStale && rtAt != null;
+    // Gaining or losing real time is a change; its exact time is not (it moves every poll).
+    final key = jsonEncode({...snap, 'hasRt': usedRt});
+    if (key == _last && _lastAt != null && now.difference(_lastAt!) < widgetRewriteEvery) return;
     _last = key;
+    _lastAt = now;
     try {
-      await _write(jsonEncode({...snap, 'updatedAt': _epoch(now)}));
+      await _write(jsonEncode({
+        ...snap,
+        'updatedAt': _epoch(now),
+        'rtAt': usedRt ? _epoch(rtAt) : null,
+      }));
     } catch (_) {
       _last = null; // try again next time
     }

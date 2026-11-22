@@ -58,7 +58,7 @@ Datos abiertos de Renfe (licencia CC BY 4.0): https://data.renfe.com/
 
 **1.4:**
 • ¿Vas a Sol? Toca «Otra parada…», elige tu parada y verás solo los trenes que paran allí, con su hora de llegada.
-• Widget para la pantalla de inicio: los próximos trenes de tu estación, con la vía y los retrasos.
+• Widget para la pantalla de inicio: los próximos trenes de tu estación, con la vía y los retrasos, que se pone al día solo.
 • Avisos de Renfe: obras, incidencias o ascensores fuera de servicio en tu estación y en sus líneas.
 
 **1.3:**

@@ -1,61 +1,45 @@
 import SwiftUI
 import WidgetKit
 
-/// Lo que la app deja en el App Group (lib/widget/next_trains_widget.dart).
-struct WidgetTrain: Decodable {
-  let line: String
-  let color: Int
-  let dest: String
-  let dep: Double
-  let sched: Double
-  let delayMin: Int?
-  let platform: String?
-  let live: Bool
-  let canceled: Bool
-  let arrival: Double?
-
-  var departure: Date { Date(timeIntervalSince1970: dep) }
-}
-
-struct WidgetBoard: Decodable {
-  let station: String
-  let via: String?
-  let trains: [WidgetTrain]
-}
-
-private let appGroup = "group.com.jfcaba.proximotren"
-
-private func loadBoard() -> WidgetBoard? {
-  guard let json = UserDefaults(suiteName: appGroup)?.string(forKey: "next_trains"),
-        let data = json.data(using: .utf8) else { return nil }
-  return try? JSONDecoder().decode(WidgetBoard.self, from: data)
-}
-
 struct NextTrainsEntry: TimelineEntry {
   let date: Date
   let board: WidgetBoard?
+  let rt: RtCache?
+
+  /// Los trenes a la hora de esta entrada, con el retraso que aún vale a esa hora.
+  var trains: [ShownTrain] {
+    guard let board else { return [] }
+    return resolve(board, rt: rt, at: date).filter { $0.departure >= date.addingTimeInterval(-60) }
+  }
 }
 
 struct NextTrainsProvider: TimelineProvider {
-  func placeholder(in context: Context) -> NextTrainsEntry { NextTrainsEntry(date: Date(), board: nil) }
-
-  func getSnapshot(in context: Context, completion: @escaping (NextTrainsEntry) -> Void) {
-    completion(NextTrainsEntry(date: Date(), board: loadBoard()))
+  func placeholder(in context: Context) -> NextTrainsEntry {
+    NextTrainsEntry(date: Date(), board: sampleBoard(now: Date()), rt: nil)
   }
 
-  /// Una entrada por minuto mientras quede algún tren: la cuenta atrás avanza y los trenes que
-  /// salen desaparecen sin que la app tenga que despertar.
-  func getTimeline(in context: Context, completion: @escaping (Timeline<NextTrainsEntry>) -> Void) {
-    let board = loadBoard()
+  /// En la galería: los trenes reales si los hay, si no un ejemplo.
+  func getSnapshot(in context: Context, completion: @escaping (NextTrainsEntry) -> Void) {
     let now = Date()
-    let last = board?.trains.map(\.departure).max() ?? now
-    var entries = [NextTrainsEntry(date: now, board: board)]
-    var t = now.addingTimeInterval(60 - now.timeIntervalSince1970.truncatingRemainder(dividingBy: 60))
-    while t <= last.addingTimeInterval(60) && entries.count < 120 {
-      entries.append(NextTrainsEntry(date: t, board: board))
-      t = t.addingTimeInterval(60)
+    let real = NextTrainsEntry(date: now, board: loadBoard(), rt: loadRt())
+    completion(context.isPreview && real.trains.isEmpty ? NextTrainsEntry(date: now, board: sampleBoard(now: now), rt: nil) : real)
+  }
+
+  /// Descarga el tiempo real de Renfe y deja una entrada por minuto: la cuenta atrás avanza, los
+  /// trenes que salen desaparecen y los retrasos caducan solos si iOS tarda en volver a pedirla.
+  /// Pide volver en 15 min (iOS decide cuándo, como con Tiempo o Bolsa).
+  func getTimeline(in context: Context, completion: @escaping (Timeline<NextTrainsEntry>) -> Void) {
+    refreshRt { rt in
+      let board = loadBoard()
+      let now = Date()
+      var entries = [NextTrainsEntry(date: now, board: board, rt: rt)]
+      var t = now.addingTimeInterval(60 - now.timeIntervalSince1970.truncatingRemainder(dividingBy: 60))
+      while entries.count < 120 {
+        entries.append(NextTrainsEntry(date: t, board: board, rt: rt))
+        t = t.addingTimeInterval(60)
+      }
+      completion(Timeline(entries: entries, policy: .after(now.addingTimeInterval(15 * 60))))
     }
-    completion(Timeline(entries: entries, policy: .never))
   }
 }
 
@@ -97,7 +81,7 @@ private func onColor(_ argb: Int) -> Color {
 }
 
 private struct TrainRow: View {
-  let train: WidgetTrain
+  let train: ShownTrain
   let now: Date
   let compact: Bool
 
@@ -119,7 +103,7 @@ private struct TrainRow: View {
       VStack(alignment: .leading, spacing: 0) {
         Text(train.dest).font(.caption).lineLimit(1)
         if let a = train.arrival, !compact {
-          Text("llega \(hhmm(Date(timeIntervalSince1970: a)))").font(.caption2).foregroundStyle(.secondary)
+          Text("llega \(hhmm(a))").font(.caption2).foregroundStyle(.secondary)
         }
       }
       Spacer(minLength: 2)
@@ -148,7 +132,7 @@ struct NextTrainsView: View {
 
   var body: some View {
     let max = family == .systemSmall ? 3 : 4
-    let trains = (entry.board?.trains ?? []).filter { $0.departure >= entry.date.addingTimeInterval(-60) }
+    let trains = entry.trains
     VStack(alignment: .leading, spacing: 4) {
       if let b = entry.board {
         HStack(spacing: 4) {

@@ -211,6 +211,9 @@ void main() {
         .first;
     expect(d.live, isFalse);
     expect(d.canceled, isFalse);
+    expect(d.realtimeById, isFalse, reason: 'the widget must not match it by id either');
+    final one = computeBoard([feedOf([out('a', hm(18, 10))])], '64200', now(), null).departures.first;
+    expect(one.realtimeById, isTrue);
   });
 
   test('canceled trip shown as canceled', () {

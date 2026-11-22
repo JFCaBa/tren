@@ -37,6 +37,7 @@ class Departure {
     this.livePlatform,
     this.route = const [],
     this.arrival,
+    this.realtimeById = false,
   });
 
   final String tripId;
@@ -66,6 +67,9 @@ class Departure {
   /// When it gets to the stop the user is going to (the chosen stop, or the only destination
   /// selected), delay applied; null without one.
   final StopTime? arrival;
+
+  /// Renfe's real time can be matched to this train by [tripId] (the id runs on one day only).
+  final bool realtimeById;
 
   /// One train on one service day (a trip id alone could repeat across days).
   String get id => '$tripId@${scheduled.toIso8601String()}';
@@ -185,6 +189,7 @@ Board computeBoard(
             canceled: rtTrip?.canceled ?? false,
             minutes: math.max(0, estimated.difference(now).inSeconds ~/ 60),
             color: feed.lineColors[trip.line] ?? greyLine,
+            realtimeById: trip.dates.length == 1,
           ),
           feed: feed,
           trip: trip,
@@ -234,6 +239,7 @@ Board computeBoard(
           for (final (id, _) in c.trip.times.take(c.idx + 1)) (id, names[c.feed]![id] ?? id),
         ],
         arrival: arrivalOf(c),
+        realtimeById: c.d.realtimeById,
         stops: [
           for (final (id, secs) in c.trip.times.skip(c.idx))
             StopTime(

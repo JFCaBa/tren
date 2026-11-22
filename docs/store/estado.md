@@ -58,3 +58,10 @@
   extensión). AAB 1.4.0 (16) en `app/build/app/outputs/bundle/release/app-release.aab`.
 - Pendiente: probar el widget en iPhone (TestFlight); enviar 1.4 cuando Apple y Google aprueben la 1.3 (no
   reiniciar sus revisiones). Novedades en listing-es.md.
+
+## 1.4.0 (17) — widget con vista previa y refresco solo (22-11-2026)
+
+- Galería de widgets con ejemplo (Atocha) en iOS y Android. El widget descarga él mismo el tiempo real de Renfe
+  (iOS cuando lo decide el sistema, pedido cada 15 min; Android con WorkManager cada 15 min) y la app le deja 60
+  trenes. Sin abrir Andén en un día se acaban los trenes. La vía la sigue poniendo la app.
+- Sustituye a la build 16 para enviar la 1.4 (misma versión, mismas novedades).

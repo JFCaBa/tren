@@ -79,4 +79,8 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // The widget downloads Renfe's real time every 15 min (NextTrainsRtWorker); same version as home_widget.
+    implementation("androidx.work:work-runtime:2.11.2")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20250517") // the real org.json, not Android's stub
 }

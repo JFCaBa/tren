@@ -18,6 +18,7 @@
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
 		7A8F287FC6F3632C67C7E8A7 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D374671C9894E85324988E1C /* SwiftUI.framework */; };
 		869DDC2B6DE0EB15CDA999A1 /* TrainActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3C667D50F7156C2FCAD2559 /* TrainActivityAttributes.swift */; };
+		90E3CF3726C8334EB2073295 /* NextTrainsData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F7F8484308DA489B549F678 /* NextTrainsData.swift */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
@@ -83,6 +84,7 @@
 		78E0A7A72DC9AD7400C4905E /* FlutterGeneratedPluginSwiftPackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = FlutterGeneratedPluginSwiftPackage; path = Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
 		7C47C70C484CD37E6920B337 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		7F7F8484308DA489B549F678 /* NextTrainsData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextTrainsData.swift; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Flutter/Debug.xcconfig; sourceTree = "<group>"; };
 		9740EEB31CF90195004384FC /* Generated.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Generated.xcconfig; path = Flutter/Generated.xcconfig; sourceTree = "<group>"; };
 		97C146EE1CF9000F007C117D /* Runner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Runner.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -196,6 +198,7 @@
 				F3007C25F70539A6058DF07E /* Info.plist */,
 				35620AC27606F1A875984AC0 /* NextTrainsWidget.swift */,
 				104AC8F0CCCC13731BB31419 /* FollowActivity.entitlements */,
+				7F7F8484308DA489B549F678 /* NextTrainsData.swift */,
 			);
 			name = FollowActivity;
 			path = FollowActivity;
@@ -392,6 +395,7 @@
 				BB417E2CB22AC678B0F7E6AC /* FollowActivityLiveActivity.swift in Sources */,
 				869DDC2B6DE0EB15CDA999A1 /* TrainActivityAttributes.swift in Sources */,
 				D8AB4CA6E6CB6770856791BC /* NextTrainsWidget.swift in Sources */,
+				90E3CF3726C8334EB2073295 /* NextTrainsData.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
