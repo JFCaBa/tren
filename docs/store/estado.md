@@ -83,3 +83,9 @@
 - Play: release nueva en Alpha con notas es-ES de la 1.5; AAB 1.5.0 (20) en
   `app/build/app/outputs/bundle/release/app-release.aab` (54 MB, lo arrastra el usuario). Falta:
   subir AAB, Next y enviar a revisión (usuario).
+- Enviada a revisión por el usuario y **aprobada** (24-11-2026).
+
+## 1.5.1 (21) — nombre de estación en dos líneas (24-11-2026)
+
+- Los nombres largos (p. ej. «Barcelona-Passeig de Gràcia») ya no se cortan con «…»: el título
+  de la estación ocupa hasta dos líneas.

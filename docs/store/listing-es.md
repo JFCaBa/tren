@@ -56,6 +56,9 @@ Datos abiertos de Renfe (licencia CC BY 4.0): https://data.renfe.com/
 
 ## Novedades de esta versión
 
+**1.5.1:**
+• Los nombres de estación largos ya se leen enteros, en dos líneas si hace falta.
+
 **1.5:**
 • El tiempo real llega antes y gasta mucho menos datos: la app pide solo lo de tu estación.
 • La vía en vivo aparece en cuanto Renfe la publica, sin esperar a que el tren esté cerca.
