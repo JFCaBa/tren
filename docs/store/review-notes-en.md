@@ -7,7 +7,7 @@ Paste into App Store Connect → Andén → version 1.3.0 → App Review Informa
 ---
 
 1. PURPOSE AND AUDIENCE
-Andén answers one question for commuters on Spain's suburban rail (Renfe Cercanías): "how long until my train?". It opens on the nearest station and lists the next departures with real-time delays and cancellations. Non-commercial: free, no ads, no in-app purchases, no analytics, no accounts.
+Andén answers one question for commuters on Spain's suburban rail (Renfe Cercanías): "how long until my train?". It opens on the nearest station and lists the next departures with real-time delays and cancellations. Non-commercial: free, no ads, no in-app purchases, no third-party analytics, no accounts.
 
 2. HOW TO USE IT
 No account is needed. The interface is in Spanish.
@@ -19,11 +19,11 @@ No account is needed. The interface is in Spanish.
 - Between about 00:00 and 05:00 Spanish time there is no service; the board shows the first morning trains.
 
 3. EXTERNAL SERVICES
-- Renfe open data: timetable (GTFS), real-time delays (gtfsrt.renfe.com/trip_updates.json) and vehicle positions (gtfsrt.renfe.com/vehicle_positions.json), read directly by the app.
-- GitHub Pages (jfcaba.github.io/tren): timetable files built from Renfe's GTFS, support and privacy pages.
+- Renfe open data: timetable (GTFS), real-time delays (gtfsrt.renfe.com/trip_updates.json) and vehicle positions (gtfsrt.renfe.com/vehicle_positions.json). NEW IN 1.5: read via our server (api.whatplatform.uk/anden/live/<station>, only the station on screen); Renfe directly if it fails.
+- Timetable files built nightly from Renfe's GTFS: served from api.whatplatform.uk/anden/data (NEW IN 1.5), with GitHub Pages (jfcaba.github.io/tren) as fallback. Support and privacy pages: GitHub Pages.
 - Our follow service (api.whatplatform.uk/anden), only while a train is followed on iPhone: the app sends the train id, station, scheduled time, its stops and the APNs push token (and Live Activity token); the service polls Renfe's real-time data and sends alerts and Live Activity updates via Apple Push Notification service. Tokens are kept in memory only, never logged, deleted when following ends. No personal data, account or location is sent.
 - Apple Core Location, on the device only, to find the nearest station; never sent anywhere.
-No authentication, payment, advertising, analytics or AI services.
+No authentication, payment, advertising, third-party analytics or AI services. Our server keeps only anonymous daily totals (per station, hour, app version; distinct users via a daily in-memory key; no IPs stored), as the privacy policy says.
 
 4. REGIONAL DIFFERENCES
 Same in every region. Content covers Spanish stations only; choosing a station by hand works everywhere.

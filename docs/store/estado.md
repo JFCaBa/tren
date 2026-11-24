@@ -71,3 +71,15 @@
 - iOS build 19 subido a App Store Connect. AAB 1.4.0 (19) subido por el usuario a una release nueva de Alpha
   ("19 (1.4.0)", notas es-ES de la 1.4), enviada a revisión por el usuario el 22-11-2026.
   Sustituye a la 18 para enviar la 1.4.
+
+## 1.5.0 (20) — horarios y tiempo real desde nuestro servidor, estadísticas (24-11-2026)
+
+- Horarios en `api.whatplatform.uk/anden/data` (Pages de reserva), tiempo real por estación en
+  `/anden/live/<estación>` (Renfe directo de reserva) y recuento anónimo para `/anden/admin`.
+  Política de privacidad actualizada (sección «Estadísticas anónimas»).
+- iOS: build 20 subido; ASC 1.5.0 creada con build 20, novedades y notas de revisión 1.5 (sin
+  «no analytics»: totales anónimos en nuestro servidor). App Privacy: sin cambios por ahora
+  (totales no ligados a persona ni dispositivo; decide el usuario). Falta: «Add for Review» (usuario).
+- Play: release nueva en Alpha con notas es-ES de la 1.5; AAB 1.5.0 (20) en
+  `app/build/app/outputs/bundle/release/app-release.aab` (54 MB, lo arrastra el usuario). Falta:
+  subir AAB, Next y enviar a revisión (usuario).
