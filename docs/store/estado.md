@@ -89,6 +89,7 @@
 
 - Los nombres largos (p. ej. «Barcelona-Passeig de Gràcia») ya no se cortan con «…»: el título
   de la estación ocupa hasta dos líneas.
-- iOS: build 21 subido a App Store Connect / TestFlight (24-11-2026).
+- iOS: build 21 subido; ASC 1.5.1 creada con build 21, novedades, notas de revisión de la 1.5 y
+  publicación manual. Falta: «Add for Review» (usuario).
 - Play: borrador de release en Alpha con notas es-ES de la 1.5.1; AAB 1.5.1 (21) en
   `app/build/app/outputs/bundle/release/app-release.aab` (54 MB, lo arrastra el usuario).
