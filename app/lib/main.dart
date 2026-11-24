@@ -13,6 +13,7 @@ import 'app_controller.dart';
 import 'data/alerts.dart';
 import 'data/positions.dart';
 import 'data/realtime.dart';
+import 'data/station_live.dart';
 import 'data/train_client.dart';
 import 'follow/follow_service.dart';
 import 'follow/follow_tracker.dart';
@@ -38,6 +39,7 @@ Future<void> main() async {
     prefs,
     positions: PositionsClient(client),
     alerts: AlertsClient(client),
+    live: StationLiveClient(client),
   );
   // Android follows in a foreground service; iOS asks our server to follow and push.
   final Follower? follower = kIsWeb

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -5,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:proximotren/app_controller.dart';
 import 'package:proximotren/data/json_cache.dart';
 import 'package:proximotren/data/positions.dart';
+import 'package:proximotren/data/station_live.dart';
 import 'package:proximotren/data/realtime.dart';
 import 'package:proximotren/domain/board.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,7 +35,7 @@ void main() {
   late tz.TZDateTime clockNow;
   setUp(() => clockNow = tz.TZDateTime(tz.getLocation('Europe/Madrid'), 2026, 11, 15, 18, 0));
 
-  Future<AppController> make() async => AppController(
+  Future<AppController> make({bool live = false}) async => AppController(
         server.client,
         dir,
         RealtimeClient(server.client),
@@ -42,12 +44,13 @@ void main() {
         clock: () => clockNow,
         periodic: timers.create,
         positions: PositionsClient(server.client, now: () => clockNow.toUtc()),
+        live: live ? StationLiveClient(server.client, now: () => clockNow.toUtc()) : null,
       );
 
   Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 30));
 
-  Future<AppController> startedAt((double, double) where) async {
-    final c = await make();
+  Future<AppController> startedAt((double, double) where, {bool live = false}) async {
+    final c = await make(live: live);
     final started = c.start();
     await settle();
     location.answer(where);
@@ -661,5 +664,109 @@ void main() {
     expect(c.error, isNull);
     expect(c.station!.id, '64200');
     expect(c.board, isNotNull);
+  });
+
+  group('station realtime from our server', () {
+    tz.TZDateTime minute(int h, int m) => tz.TZDateTime(tz.getLocation('Europe/Madrid'), 2026, 11, 15, h, m);
+    Departure? trip(AppController c, String id) => c.board!.departures.where((d) => d.tripId == id).firstOrNull;
+
+    test('server answers: board live from it, Renfe not read', () async {
+      clockNow = minute(18, 50); // T1 (one date: realtime applies) leaves Silla at 18:55
+      server.liveBody = liveJson(clockNow.toUtc(), delays: {'T1': 120}, platforms: {'T2': '3'});
+      final c = await startedAt(nearSilla, live: true);
+      final rtBefore = server.rtCalls;
+      timers.timers.last.fire();
+      await settle();
+      expect(server.liveStops.last, '64200');
+      expect(server.rtCalls, rtBefore);
+      expect(server.positionsCalls, 0);
+      expect(c.board!.rtStale, isFalse);
+      expect(trip(c, 'T1')!.delaySec, 120);
+      expect(trip(c, 'T2')!.livePlatform, '3');
+    });
+
+    test('server fails: Renfe directly, as before', () async {
+      server.liveFails = true;
+      final c = await startedAt(nearSilla, live: true);
+      final rtBefore = server.rtCalls;
+      timers.timers.last.fire();
+      await settle();
+      expect(server.liveStops, isNotEmpty);
+      expect(server.rtCalls, rtBefore + 1);
+      expect(c.board, isNotNull);
+    });
+
+    test('server 503: Renfe directly', () async {
+      final c = await startedAt(nearSilla, live: true); // liveBody null -> 503
+      final rtBefore = server.rtCalls;
+      timers.timers.last.fire();
+      await settle();
+      expect(server.rtCalls, rtBefore + 1);
+      expect(c.board, isNotNull);
+    });
+
+    test('an answer for the previous station is dropped', () async {
+      clockNow = minute(18, 56);
+      server.liveBody = liveJson(clockNow.toUtc(), delays: {'T2': 600});
+      final c = await startedAt(nearSilla, live: true);
+      server.liveHolds['64200'] = Completer<void>();
+      timers.timers.last.fire(); // asks for Silla, held
+      await settle();
+      c.selectStation('69110'); // Gandia
+      await settle();
+      server.liveHolds.remove('64200')!.complete();
+      await settle();
+      expect(c.station!.id, '69110');
+      expect(c.rt == null || c.rt!.trips['T2']?.delaySec != 600, isTrue,
+          reason: "Silla's answer must not stand for Gandia");
+    });
+
+    test('changing station forgets the last station-only reading', () async {
+      clockNow = minute(18, 56);
+      server.liveBody = liveJson(clockNow.toUtc(), delays: {'T2': 600});
+      final c = await startedAt(nearSilla, live: true);
+      timers.timers.last.fire();
+      await settle();
+      expect(c.rt!.trips['T2']!.delaySec, 600);
+      server.liveBody = null; // the next one (Gandia) fails over to Renfe
+      c.selectStation('69110');
+      await settle();
+      expect(c.rt?.trips['T2']?.delaySec, isNot(600));
+    });
+
+    test('an older server snapshot does not replace a newer Renfe one', () async {
+      clockNow = minute(18, 56);
+      server.liveFails = true;
+      server.positionsBody = positionsJson('T2', '64200', '2', clockNow);
+      final c = await startedAt(nearSilla, live: true);
+      timers.timers.last.fire(); // server down: Renfe positions, platform 2
+      await settle();
+      expect(trip(c, 'T2')!.livePlatform, '2');
+      server.liveFails = false;
+      server.liveBody = jsonEncode({
+        'tripsAt': clockNow.toUtc().millisecondsSinceEpoch ~/ 1000,
+        'trips': {},
+        'positionsAt': clockNow.toUtc().millisecondsSinceEpoch ~/ 1000 - 25,
+        'platforms': {
+          'T2': {'platform': '9', 'at': clockNow.toUtc().millisecondsSinceEpoch ~/ 1000 - 25},
+        },
+      });
+      clockNow = clockNow.add(const Duration(seconds: 30));
+      timers.timers.last.fire();
+      await settle();
+      expect(trip(c, 'T2')!.livePlatform, '2');
+    });
+
+    test('no polling after dispose, even if the station changes', () async {
+      server.liveBody = liveJson(clockNow.toUtc(), delays: {'T2': 600});
+      final c = await startedAt(nearSilla, live: true);
+      timers.timers.last.fire();
+      await settle();
+      c.dispose();
+      final asked = server.liveStops.length;
+      c.selectStation('69110');
+      await settle();
+      expect(server.liveStops.length, asked);
+    });
   });
 }

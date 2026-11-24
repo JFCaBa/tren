@@ -13,6 +13,7 @@ import 'data/json_cache.dart';
 import 'data/nucleo_index.dart';
 import 'data/positions.dart';
 import 'data/realtime.dart';
+import 'data/station_live.dart';
 import 'domain/alerts.dart';
 import 'domain/board.dart';
 import 'domain/nearest.dart';
@@ -56,8 +57,10 @@ class AppController extends ChangeNotifier {
     PeriodicTimerFactory? periodic,
     PositionsClient? positions,
     AlertsClient? alerts,
+    StationLiveClient? live,
   })  : _clock = clock ?? madridNow,
         _positionsClient = positions,
+        _liveClient = live,
         _alertsClient = alerts,
         _periodic = periodic ?? Timer.periodic,
         _indexCache = indexCache(_client, _cacheDir);
@@ -66,6 +69,9 @@ class AppController extends ChangeNotifier {
   final Directory _cacheDir;
   final RealtimeClient _rtClient;
   final PositionsClient? _positionsClient;
+
+  /// Our server's per-station realtime; Renfe's whole feeds are the fallback.
+  final StationLiveClient? _liveClient;
   final AlertsClient? _alertsClient;
   final LocationSource _location;
   final SharedPreferences _prefs;
@@ -108,6 +114,10 @@ class AppController extends ChangeNotifier {
 
   /// Last live platforms from Renfe; kept across failed polls, shown while fresh.
   PlatformSnapshot? positions;
+
+  /// Station [rt] / [positions] cover when they came from our server (only that station's
+  /// trains); null when they are Renfe's whole feeds.
+  String? _rtStop, _positionsStop;
 
   /// `stopId|tripId` -> platform seen live and when; survives restarts via prefs.
   late final Map<String, ({String platform, DateTime at})> _seenPlatforms = _loadSeenPlatforms();
@@ -352,6 +362,7 @@ class AppController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _timer?.cancel();
+    _timer = null;
     super.dispose();
   }
 
@@ -401,8 +412,53 @@ class AppController extends ChangeNotifier {
   static const positionsMinInterval = Duration(seconds: 60);
   tz.TZDateTime? _positionsAt;
 
+  /// A reading from our server only covers its station: never let it stand for another one.
+  void _forgetOtherStationLive(String stopId) {
+    var forgot = false;
+    if (_rtStop != null && _rtStop != stopId) {
+      rt = null;
+      _rtStop = null;
+      forgot = true;
+    }
+    if (_positionsStop != null && _positionsStop != stopId) {
+      positions = null;
+      _positionsStop = null;
+    }
+    if (forgot && _timer != null && !_disposed) unawaited(_pollRt()); // don't wait 30 s without realtime
+  }
+
+  /// Realtime for the current station from our server; false if it can't answer (then Renfe).
+  Future<bool> _pollLive() async {
+    final client = _liveClient, s = station;
+    if (client == null || s == null) return false;
+    final StationLive live;
+    try {
+      live = await client.fetch(s.id);
+    } catch (_) {
+      return false;
+    }
+    if (_disposed) return true;
+    if (station?.id != s.id) return true; // the user moved on: drop it, the new station polls itself
+    rt = live.rt;
+    _rtStop = s.id;
+    final p = live.positions, last = positions;
+    // Out-of-order guard across both sources (a station's own snapshot can lag Renfe's whole one).
+    if (p != null && (last == null || !p.feedTimestamp.isBefore(last.feedTimestamp))) {
+      positions = p;
+      _positionsStop = s.id;
+      _rememberPlatforms(p, s.id, _clock());
+    }
+    return true;
+  }
+
   Future<void> _pollRt() async {
     _maybeFetchAlerts();
+    if (await _pollLive()) {
+      if (_disposed) return;
+      rtAttempted = true;
+      _recompute();
+      return;
+    }
     final now = _clock();
     final last = _positionsAt;
     final wantPositions = _positionsClient != null &&
@@ -413,6 +469,7 @@ class AppController extends ChangeNotifier {
       () async {
         try {
           rt = await _rtClient.fetch();
+          _rtStop = null;
         } catch (_) {
           // Board.rtStale reflects it.
         }
@@ -424,6 +481,7 @@ class AppController extends ChangeNotifier {
             final last = positions;
             if (last == null || !p.feedTimestamp.isBefore(last.feedTimestamp)) {
               positions = p; // drop out-of-order answers
+              _positionsStop = null;
               final s = station;
               if (s != null) _rememberPlatforms(p, s.id, _clock());
             }
@@ -485,6 +543,7 @@ class AppController extends ChangeNotifier {
     _prefs.setString(_lastStationKey, s.id);
     if (!provisional) _remember(s.id);
     if (!same) {
+      _forgetOtherStationLive(s.id);
       board = null; // never show (or hand the widget) the last station's trains under the new name
       filters = _savedFilters(s.id);
       via = _prefs.getString(_viaKey(s.id));

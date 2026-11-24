@@ -27,6 +27,10 @@ class FakeServer {
   int positionsCalls = 0;
   String? alertsBody; // served at gtfsrt.renfe.com/alerts.json (404 when null)
   int alertsCalls = 0;
+  String? liveBody; // served at api.whatplatform.uk/anden/live/<stop> (503 when null)
+  bool liveFails = false;
+  final liveStops = <String>[]; // stops asked for, in order
+  final liveHolds = <String, Completer<void>>{}; // stop -> gate
   bool rtFails = false;
   bool rtHangs = false;
   int rtCalls = 0;
@@ -36,6 +40,15 @@ class FakeServer {
   void release(String path) => holds.remove(path)?.complete();
 
   late final http.Client client = MockClient((req) async {
+    if (req.url.host == 'api.whatplatform.uk' && req.url.path.startsWith('/anden/live/')) {
+      final stop = req.url.pathSegments.last;
+      liveStops.add(stop);
+      final gate = liveHolds[stop];
+      if (gate != null) await gate.future;
+      if (liveFails) throw const SocketException('offline');
+      final body = liveBody;
+      return body == null ? http.Response('unavailable', 503) : okJson(body);
+    }
     if (req.url.host == 'gtfsrt.renfe.com' && req.url.path.endsWith('vehicle_positions.json')) {
       positionsCalls++;
       if (positionsFails) throw const SocketException('offline');
@@ -194,4 +207,15 @@ class FakeFollower extends ChangeNotifier implements Follower {
   int settingsOpened = 0;
   @override
   Future<void> openSettings() async => settingsOpened++;
+}
+
+/// Our server's answer for one station: [delays] by trip (seconds), [platforms] by trip.
+String liveJson(DateTime at, {Map<String, int> delays = const {}, Map<String, String> platforms = const {}}) {
+  final ts = at.millisecondsSinceEpoch ~/ 1000;
+  return jsonEncode({
+    'tripsAt': ts,
+    'trips': {for (final e in delays.entries) e.key: {'delay': e.value, 'cancelled': false}},
+    'positionsAt': ts,
+    'platforms': {for (final e in platforms.entries) e.key: {'platform': e.value, 'at': ts}},
+  });
 }
