@@ -174,6 +174,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text(shortStopName(c.station!.name),
                               style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis),
                           Text(c.station!.nucleos.map((n) => c.nucleoName(n) ?? n).join(' · '),
                               style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),

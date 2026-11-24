@@ -85,3 +85,7 @@ def test_render_sections(db):
     for text in ("<script", "http://", "https://"):
         assert text not in page
     assert 'href="?range=30d"' in page
+
+
+def test_links_back_to_what_platform_admin(db):
+    assert '<a href="/admin">' in render_page(s(db))

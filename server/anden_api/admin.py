@@ -56,6 +56,8 @@ body { margin: 0; background: var(--bg); color: var(--ink);
   font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 main { max-width: 760px; margin: 0 auto; padding: 20px 16px 40px; }
 h1 { font-size: 20px; margin: 0 0 16px; color: var(--brand); }
+h1 a { float: right; font-size: 14px; font-weight: 500; color: var(--brand); text-decoration: none;
+  padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; }
 h2 { font-size: 15px; margin: 28px 0 10px; color: var(--muted); font-weight: 600;
   text-transform: uppercase; letter-spacing: .04em; }
 nav { display: flex; gap: 6px; flex-wrap: wrap; margin: 28px 0 -12px; }
@@ -125,7 +127,7 @@ def render_page(s: dict) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Andén · estadísticas</title><style>{CSS}</style></head>
 <body><main>
-<h1>Andén · estadísticas</h1>
+<h1>Andén · estadísticas <a href="/admin">← What Platform</a></h1>
 <div class="cards">{cards}</div>
 <h2>Personas al día <small>· últimos 30 días</small></h2><div class="panel">{daily}</div>
 <nav class="range">{nav}</nav>

@@ -12,6 +12,7 @@ import 'package:proximotren/follow/follow_logic.dart';
 import 'package:proximotren/follow/follow_tracker.dart';
 import 'package:proximotren/follow/follower.dart';
 import 'package:proximotren/ui/departure_row.dart';
+import 'package:proximotren/ui/names.dart';
 import 'package:proximotren/ui/home_screen.dart';
 import 'package:proximotren/ui/your_train.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -257,6 +258,13 @@ void main() {
     await tester.tap(find.text('→ València Nord').first);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('stops-T2')), findsNothing);
+  });
+
+  testWidgets('a long station name wraps to two lines instead of being cut', (tester) async {
+    final c = await started(tester);
+    await show(tester, c);
+    final name = tester.widget<Text>(find.text(shortStopName(c.station!.name)).first);
+    expect(name.maxLines, 2);
   });
 
   testWidgets('long destinations are shortened and wrap to two lines', (tester) async {
