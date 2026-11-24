@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Nightly timetable build on the VPS (cron of `ubuntu`, 02:30 UTC), served by nginx at
 # https://api.whatplatform.uk/anden/data/. Same build_feed.py as .github/workflows/feed.yml, with the
-# platforms read straight from the collector. Each run is a new generation directory; files equal to
-# the ones served are hard links to them (same mtime, same ETag: apps get 304), and `current` is
-# switched to it with one atomic rename. On any failure `current` is left as it was.
+# platforms read straight from the collector. Each run is a new generation directory and `current`
+# is switched to it with one atomic rename. On any failure `current` is left as it was.
+# (Every file carries generated_at, which the app uses for its stale warning: files change each night.)
 # Setup: pipeline/vps/README.md ("Nightly feed").
 set -euo pipefail
 
@@ -50,13 +50,6 @@ PYTHONDONTWRITEBYTECODE=1 $BUILD --out "$gen" --platforms "$PLATFORMS" --previou
 step=check
 test -s "$gen/index.json"
 
-step=link
-if [ -d "$OUT/current" ]; then
-  (cd "$gen" && find . -type f) | while IFS= read -r f; do
-    old="$OUT/current/$f"
-    if [ -f "$old" ] && cmp -s "$gen/$f" "$old"; then ln -f "$old" "$gen/$f"; fi
-  done
-fi
 chmod -R a+rX "$gen"
 
 step=publish

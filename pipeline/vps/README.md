@@ -43,8 +43,8 @@ Builds the timetables (`index.json`, `feeds/<núcleo>.json`, `feed.json`) every 
 (`deploy/nginx/whatplatform.uk.conf` in the platform repo). GitHub Pages keeps being published too
 until the app that reads from our server is adopted.
 
-- `/opt/anden/data/gen.*`: one directory per build; files equal to the served ones are hard links
-  to them (same mtime and ETag, so apps get 304). The current and the previous build are kept.
+- `/opt/anden/data/gen.*`: one directory per build; the current and the previous one are kept.
+  Files change every night (`generated_at`), so apps get 304 during the day and one download a night.
 - `/opt/anden/data/current`: symlink to the served build, switched with one atomic rename. If the
   build fails it is left as it was; the first run compares against GitHub Pages.
 - Log: `/opt/anden/data/feed.log` (no user data).

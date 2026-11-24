@@ -84,17 +84,6 @@ class FeedShTest(unittest.TestCase):
         self.run_sh()
         self.assertEqual(self.last_previous_base(), f"file://{self.out}/current")
 
-    def test_unchanged_file_keeps_mtime(self):
-        self.files({"index.json": "{}", "feeds/10.json": "same", "feeds/20.json": "old"})
-        self.run_sh()
-        before = (self.current() / "feeds/10.json").stat().st_mtime_ns
-        os.utime(self.current() / "feeds/10.json", ns=(before - 10**9, before - 10**9))
-        before -= 10**9
-        self.files({"index.json": "{}", "feeds/10.json": "same", "feeds/20.json": "new"})
-        self.assertEqual(self.run_sh().returncode, 0)
-        self.assertEqual((self.current() / "feeds/10.json").stat().st_mtime_ns, before)
-        self.assertEqual((self.current() / "feeds/20.json").read_text(), "new")
-
     def test_build_failure_keeps_current(self):
         self.files({"index.json": "{}"})
         self.run_sh()

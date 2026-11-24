@@ -136,3 +136,7 @@ Commit: `feat(app): timetables from our server, GitHub Pages as fallback`.
   timeout doble: con caché la app ya muestra lo guardado mientras refresca; `file://` ya lo cubren
   `test_cli_nucleos` y se añade `test_real_build_file_previous`.
 - opencode: sin hallazgos.
+
+**Nota tras el deploy (24-11-2026):** se quitó el enlace duro de ficheros iguales: todos llevan
+`generated_at` (la app lo usa para avisar de horarios viejos) y cambian cada noche, así que nunca
+eran iguales. Las apps reciben 304 durante el día y una descarga por noche, como con Pages.

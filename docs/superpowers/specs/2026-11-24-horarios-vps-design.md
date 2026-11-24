@@ -48,3 +48,7 @@ que la parte 2 (tiempo real por estación) tenga los horarios en el mismo servid
 - Primera ejecución con `--previous-base` de Pages, para que la comparación con lo anterior
   (encogimiento > 50 %) funcione desde el primer día.
 - Reserva a Pages en la app.
+
+**Nota tras el deploy (24-11-2026):** se quitó el enlace duro de ficheros iguales: todos llevan
+`generated_at` (la app lo usa para avisar de horarios viejos) y cambian cada noche, así que nunca
+eran iguales. Las apps reciben 304 durante el día y una descarga por noche, como con Pages.
