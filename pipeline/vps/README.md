@@ -34,3 +34,28 @@ check that its data is not newer than ours, then `git -C ~/anden-platforms/data 
 refs/heads/platform-data | cut -f1 > ~/anden-platforms/published` to let the next pass replace it.
 
 Update the script: `git -C ~/anden-platforms/src pull --ff-only`.
+
+## Nightly feed (`feed.sh`)
+
+Builds the timetables (`index.json`, `feeds/<núcleo>.json`, `feed.json`) every night with the same
+`build_feed.py` as `.github/workflows/feed.yml`, reading the platforms from the collector's local
+`data/platforms.json`. nginx serves them at `https://api.whatplatform.uk/anden/data/`
+(`deploy/nginx/whatplatform.uk.conf` in the platform repo). GitHub Pages keeps being published too
+until the app that reads from our server is adopted.
+
+- `/opt/anden/data/gen.*`: one directory per build; files equal to the served ones are hard links
+  to them (same mtime and ETag, so apps get 304). The current and the previous build are kept.
+- `/opt/anden/data/current`: symlink to the served build, switched with one atomic rename. If the
+  build fails it is left as it was; the first run compares against GitHub Pages.
+- Log: `/opt/anden/data/feed.log` (no user data).
+
+Setup (once, with sudo for the directory):
+
+```sh
+sudo install -d -o ubuntu -g ubuntu -m 755 /opt/anden/data
+~/anden-platforms/src/pipeline/vps/feed.sh && tail -3 /opt/anden/data/feed.log
+(crontab -l; echo '30 2 * * * $HOME/anden-platforms/src/pipeline/vps/feed.sh') | crontab -
+```
+
+The cron does not run the tests: after `git -C ~/anden-platforms/src pull --ff-only`, run
+`cd ~/anden-platforms/src/pipeline && python3 -m unittest discover -s tests`.
