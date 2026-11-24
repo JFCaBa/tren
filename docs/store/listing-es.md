@@ -56,6 +56,11 @@ Datos abiertos de Renfe (licencia CC BY 4.0): https://data.renfe.com/
 
 ## Novedades de esta versión
 
+**1.5:**
+• El tiempo real llega antes y gasta mucho menos datos: la app pide solo lo de tu estación.
+• La vía en vivo aparece en cuanto Renfe la publica, sin esperar a que el tren esté cerca.
+• Horarios servidos desde nuestro propio servidor, con copia de reserva.
+
 **1.4:**
 • ¿Vas a Sol? Toca «Otra parada…», elige tu parada y verás solo los trenes que paran allí, con su hora de llegada.
 • Widget para la pantalla de inicio: los próximos trenes de tu estación, con la vía y los retrasos, que se pone al día solo.
