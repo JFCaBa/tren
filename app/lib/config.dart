@@ -1,5 +1,7 @@
-const baseUrl = 'https://jfcaba.github.io/tren';
-const privacyUrl = '$baseUrl/privacidad.html';
+/// Timetables (index.json, feeds/): built nightly on our server; GitHub Pages is the fallback.
+const dataUrl = 'https://api.whatplatform.uk/anden/data';
+const pagesUrl = 'https://jfcaba.github.io/tren';
+const privacyUrl = '$pagesUrl/privacidad.html'; // linked from the stores: stays on Pages
 const rtUrl = 'https://gtfsrt.renfe.com/trip_updates.json';
 const positionsUrl = 'https://gtfsrt.renfe.com/vehicle_positions.json';
 const alertsUrl = 'https://gtfsrt.renfe.com/alerts.json';

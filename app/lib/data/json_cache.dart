@@ -16,10 +16,14 @@ class DataUnavailable implements Exception {
   String toString() => 'DataUnavailable($cause)';
 }
 
-String _resolve(String path) => Uri.parse('$baseUrl/').resolve(path).toString();
+String _resolve(String base, String path) => Uri.parse('$base/').resolve(path).toString();
 
 JsonCache<NucleoIndex> indexCache(http.Client client, Directory dir) =>
-    JsonCache(client, dir, url: _resolve('index.json'), name: 'index', parse: NucleoIndex.fromJson);
+    JsonCache(client, dir,
+        url: _resolve(dataUrl, 'index.json'),
+        fallbackUrl: _resolve(pagesUrl, 'index.json'),
+        name: 'index',
+        parse: NucleoIndex.fromJson);
 
 /// [path] is the núcleo's `feed` entry in index.json (defaults to the published layout).
 JsonCache<Feed> nucleoCache(http.Client client, Directory dir, String id,
@@ -27,7 +31,8 @@ JsonCache<Feed> nucleoCache(http.Client client, Directory dir, String id,
     JsonCache(
       client,
       dir,
-      url: _resolve(path ?? 'feeds/$id.json'),
+      url: _resolve(dataUrl, path ?? 'feeds/$id.json'),
+      fallbackUrl: _resolve(pagesUrl, path ?? 'feeds/$id.json'),
       name: 'feed_$id',
       parse: Feed.fromJson,
       timeout: timeout ?? const Duration(seconds: 15),
@@ -41,6 +46,7 @@ class JsonCache<T> {
     this._client,
     this._dir, {
     required this.url,
+    this.fallbackUrl,
     required this.name,
     required T Function(Map<String, dynamic>) parse,
     this.timeout = const Duration(seconds: 15),
@@ -51,6 +57,9 @@ class JsonCache<T> {
   final http.Client _client;
   final Directory _dir;
   final String url;
+
+  /// Tried when [url] fails (network, non-200/304, unparsable body), before the cached copy.
+  final String? fallbackUrl;
   final String name;
   final T Function(Map<String, dynamic>) _parse;
   /// Limit for a refresh when a cached copy exists (falls back to it).
@@ -95,22 +104,29 @@ class JsonCache<T> {
 
   Future<T> _refresh() async {
     final cached = await loadCached();
-    final http.Response resp;
-    final T feed;
-    final String body;
-    try {
-      final etag = cached != null ? _feedEtag : null;
-      resp = await _client.get(Uri.parse(url), headers: {'If-None-Match': ?etag}).timeout(cached == null ? firstTimeout : timeout);
-      if (resp.statusCode == 304 && cached != null) return cached;
-      if (resp.statusCode != 200) throw http.ClientException('$name HTTP ${resp.statusCode}');
-      body = utf8.decode(resp.bodyBytes);
-      feed = _parse(jsonDecode(body) as Map<String, dynamic>); // validate before saving
-    } catch (e) {
-      if (cached != null) return cached;
-      throw DataUnavailable(e);
+    final etag = cached != null ? _feedEtag : null;
+    Object? error;
+    for (final u in [url, ?fallbackUrl]) {
+      try {
+        final resp = await _client
+            .get(Uri.parse(u), headers: {'If-None-Match': ?etag})
+            .timeout(cached == null ? firstTimeout : timeout);
+        if (resp.statusCode == 304 && cached != null) return cached;
+        if (resp.statusCode != 200) throw http.ClientException('$name HTTP ${resp.statusCode}');
+        final body = utf8.decode(resp.bodyBytes);
+        final feed = _parse(jsonDecode(body) as Map<String, dynamic>); // validate before saving
+        return await _keep(feed, body, resp.headers['etag']);
+      } catch (e) {
+        error = e;
+      }
     }
+    if (cached != null) return cached;
+    throw DataUnavailable(error!);
+  }
+
+  Future<T> _keep(T feed, String body, String? etag) async {
     _feed = feed;
-    _feedEtag = resp.headers['etag'];
+    _feedEtag = etag;
     try {
       await _write(_feedFile, body);
       await _write(_metaFile, jsonEncode({

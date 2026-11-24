@@ -157,24 +157,24 @@ void main() {
   });
 
   test('absolute or leading-slash feed paths resolve against the base', () async {
-    await nucleoCache(serve((_) => ok(feedBody)), dir, '40', path: '/tren/feeds/40.json').refresh();
-    expect(requests.last.url.toString(), 'https://jfcaba.github.io/tren/feeds/40.json');
+    await nucleoCache(serve((_) => ok(feedBody)), dir, '40', path: '/x/feeds/40.json').refresh();
+    expect(requests.last.url.toString(), 'https://api.whatplatform.uk/x/feeds/40.json');
   });
 
   test('uses the feed path from the index when given', () async {
     await nucleoCache(serve((_) => ok(feedBody)), dir, '40', path: 'feeds/v3/40.json').refresh();
-    expect(requests.single.url.toString(), 'https://jfcaba.github.io/tren/feeds/v3/40.json');
+    expect(requests.single.url.toString(), 'https://api.whatplatform.uk/anden/data/feeds/v3/40.json');
   });
 
   test('requests the nucleo url', () async {
     await nucleoCache(serve((_) => ok(feedBody)), dir, '40').refresh();
-    expect(requests.single.url.toString(), 'https://jfcaba.github.io/tren/feeds/40.json');
+    expect(requests.single.url.toString(), 'https://api.whatplatform.uk/anden/data/feeds/40.json');
   });
 
   test('index cache uses its own files', () async {
     final feed = await nucleoCache(serve((_) => ok(feedBody, headers: {'etag': '"f"'})), dir, '40').refresh();
     final index = await indexCache(serve((_) => ok(indexBody, headers: {'etag': '"i"'})), dir).refresh();
-    expect(requests.last.url.toString(), 'https://jfcaba.github.io/tren/index.json');
+    expect(requests.last.url.toString(), 'https://api.whatplatform.uk/anden/data/index.json');
     expect(index, isA<NucleoIndex>());
     expect(feed, isA<Feed>());
     expect((await indexCache(serve((_) => http.Response('', 304)), dir).loadCached())!.nucleos.length, 2);
@@ -187,5 +187,78 @@ void main() {
     final cached = await repo.loadCached();
     expect(await repo.refresh(), same(cached));
     expect((await repo.loadCached())!.trips.length, 3);
+  });
+
+  group('our server first, GitHub Pages as fallback', () {
+    const server = 'api.whatplatform.uk';
+    const pages = 'https://jfcaba.github.io/tren/feeds/40.json';
+
+    test('server answers: one request, no Pages', () async {
+      final feed = await nucleoCache(serve((_) => ok(feedBody)), dir, '40').refresh();
+      expect(feed.trips.length, 3);
+      expect(requests.single.url.host, server);
+    });
+
+    test('server down: Pages', () async {
+      final repo = nucleoCache(MockClient((req) async {
+        requests.add(req);
+        if (req.url.host == server) throw const SocketException('down');
+        return ok(feedBody);
+      }), dir, '40');
+      expect((await repo.refresh()).trips.length, 3);
+      expect(requests.map((r) => r.url.toString()), ['https://$server/anden/data/feeds/40.json', pages]);
+    });
+
+    test('server 500: Pages', () async {
+      final repo = nucleoCache(serve((req) => req.url.host == server ? http.Response('x', 500) : ok(feedBody)), dir, '40');
+      expect((await repo.refresh()).trips.length, 3);
+      expect(requests.last.url.toString(), pages);
+    });
+
+    test('server 404: Pages', () async {
+      final repo = nucleoCache(serve((req) => req.url.host == server ? http.Response('x', 404) : ok(feedBody)), dir, '40');
+      expect((await repo.refresh()).trips.length, 3);
+    });
+
+    test('server bad json: Pages', () async {
+      final repo = nucleoCache(serve((req) => req.url.host == server ? ok('{"oops":') : ok(feedBody)), dir, '40');
+      expect((await repo.refresh()).trips.length, 3);
+      expect(requests.length, 2);
+    });
+
+    test('both down, cache: cache', () async {
+      await nucleoCache(serve((_) => ok(feedBody)), dir, '40').refresh();
+      requests.clear();
+      final repo = nucleoCache(serve((_) => http.Response('x', 503)), dir, '40');
+      expect((await repo.refresh()).trips.length, 3);
+      expect(requests.length, 2);
+    });
+
+    test('both down, no cache: DataUnavailable', () async {
+      final repo = nucleoCache(serve((_) => http.Response('x', 503)), dir, '40');
+      await expectLater(repo.refresh(), throwsA(isA<DataUnavailable>()));
+    });
+
+    test('304 from server: cache, no Pages', () async {
+      await nucleoCache(serve((_) => ok(feedBody, headers: {'etag': '"a"'})), dir, '40').refresh();
+      requests.clear();
+      final repo = nucleoCache(serve((_) => http.Response('', 304)), dir, '40');
+      expect((await repo.refresh()).trips.length, 3);
+      expect(requests.single.url.host, server);
+    });
+
+    test('Pages gets the same If-None-Match and its 304 keeps the cache', () async {
+      await nucleoCache(serve((_) => ok(feedBody, headers: {'etag': '"a"'})), dir, '40').refresh();
+      requests.clear();
+      final repo = nucleoCache(serve((req) => req.url.host == server ? http.Response('x', 502) : http.Response('', 304)), dir, '40');
+      expect((await repo.refresh()).trips.length, 3);
+      expect(requests.last.headers['If-None-Match'], '"a"');
+    });
+
+    test('index falls back too', () async {
+      final repo = indexCache(serve((req) => req.url.host == server ? http.Response('x', 500) : ok(indexBody)), dir);
+      expect((await repo.refresh()).nucleos.length, 2);
+      expect(requests.last.url.toString(), 'https://jfcaba.github.io/tren/index.json');
+    });
   });
 }

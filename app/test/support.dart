@@ -17,7 +17,7 @@ http.Response okJson(String body, {Map<String, String> headers = const {}}) =>
 
 /// Serves index.json, `feeds/<id>.json` and the RT fixture. Each path can fail or be held back.
 class FakeServer {
-  bool feedFails = false; // every jfcaba.github.io request fails
+  bool feedFails = false; // every timetable request fails (our server and GitHub Pages)
   String? indexOverride; // served instead of fixtures/index.json
   String? feed40Override; // served instead of fixtures/feed_40.json
   final failing = <String>{}; // e.g. 'feeds/10.json'
@@ -53,7 +53,8 @@ class FakeServer {
       if (rtFails) throw const SocketException('offline');
       return okJson(rtBody);
     }
-    final path = req.url.path.replaceFirst('/tren/', '');
+    // Our server (/anden/data/) or its GitHub Pages fallback (/tren/): same files.
+    final path = req.url.path.replaceFirst(RegExp(r'^/(anden/data|tren)/'), '');
     requested.add(path);
     final gate = holds[path];
     if (gate != null) await gate.future;
