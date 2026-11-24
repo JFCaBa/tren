@@ -260,3 +260,135 @@ def test_live_old_positions_left_out():
         assert st == 200 and json.loads(out)["positionsAt"] is None and json.loads(out)["platforms"] == {}
     finally:
         stop_server(s)
+
+
+# ---- stats and /admin ----
+
+def stats_server(tmp_path, admin_key="s3cret", trips=None, positions=None, index=INDEX):
+    from anden_api.stats import Tally
+    from anden_api.stats_db import StatsDB
+    from anden_api.renfe import Trip
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    tally, db = Tally(), StatsDB(tmp_path / "s.db")
+    store = FollowStore()
+    st = FakeStations(index)
+    st.names = lambda: {"18000": ("Madrid-Puerta de Atocha", "Madrid")}
+    s = make_server("127.0.0.1", 0, follows=store, push=object(), clock=lambda: NOW, log=io.StringIO(),
+                    trips=trips or FakeLiveFeed({"TR1": Trip(0, False)}), positions=positions or FakeLiveFeed({}),
+                    stations=st, refresher=FakeRefresher(), stats=tally, stats_db=db, admin_key=admin_key)
+    threading.Thread(target=s.serve_forever, daemon=True).start()
+    return s, tally, db
+
+
+def get(s, path, headers=None):
+    c = http.client.HTTPConnection("127.0.0.1", s.server_address[1], timeout=10)
+    c.request("GET", path, headers=headers or {})
+    r = c.getresponse()
+    out = r.read()
+    c.close()
+    return r.status, {k.lower(): v for k, v in r.getheaders()}, out
+
+
+APP = {"User-Agent": "Anden/1.5", "X-Real-IP": "203.0.113.7"}
+
+
+def test_live_counts_200_and_503_not_404(tmp_path):
+    s, tally, db = stats_server(tmp_path)
+    s2, tally2, db2 = stats_server(tmp_path / "b", trips=FakeLiveFeed(None, ts=None))
+    try:
+        assert get(s, "/live/18000", APP)[0] == 200
+        assert get(s, "/live/99999", APP)[0] == 404
+        [d] = tally.drain(NOW)
+        assert (d.requests, d.visitors, d.stations) == (1, 1, {"18000": (1, 1)})
+        assert get(s2, "/live/18000", APP)[0] == 503
+        [d2] = tally2.drain(NOW)
+        assert (d2.requests, d2.visitors) == (1, 1)
+    finally:
+        stop_server(s), stop_server(s2), db.close(), db2.close()
+
+
+def test_live_without_real_ip_no_person(tmp_path):
+    s, tally, db = stats_server(tmp_path)
+    try:
+        get(s, "/live/18000", {"User-Agent": "Anden/1.5"})
+        [d] = tally.drain(NOW)
+        assert (d.requests, d.visitors) == (1, 0)
+    finally:
+        stop_server(s), db.close()
+
+
+def test_follow_renewed_not_counted(tmp_path):
+    s, tally, db = stats_server(tmp_path)
+    try:
+        assert req(s, "POST", "/follow", body())[0] == 200
+        assert req(s, "POST", "/follow", body())[0] == 200  # same train: app re-sync
+        [d] = tally.drain(NOW)
+        assert d.follows == 1
+    finally:
+        stop_server(s), db.close()
+
+
+def test_admin_needs_key(tmp_path):
+    s, _, db = stats_server(tmp_path)
+    s2, _, db2 = stats_server(tmp_path / "c", admin_key="")
+    try:
+        assert get(s, "/admin")[0] == 404
+        assert get(s, "/admin", {"X-Admin-Key": "nope"})[0] == 404
+        assert get(s2, "/admin", {"X-Admin-Key": ""})[0] == 404
+        status, headers, page = get(s, "/admin?range=30d", {"X-Admin-Key": "s3cret"})
+        assert status == 200 and headers["content-type"].startswith("text/html")
+        assert headers["cache-control"] == "no-store" and "default-src 'none'" in headers["content-security-policy"]
+        assert "Estaciones más vistas".encode() in page and b"class=on>30 d" in page
+    finally:
+        stop_server(s), stop_server(s2), db.close(), db2.close()
+
+
+def test_admin_shows_live_people_and_names(tmp_path):
+    s, tally, db = stats_server(tmp_path)
+    try:
+        get(s, "/live/18000", APP)
+        db.apply(tally.drain(NOW))
+        page = get(s, "/admin?range=today", {"X-Admin-Key": "s3cret"})[2].decode()
+        assert "Madrid-Puerta de Atocha" in page and "<b>1</b><span>Personas hoy" in page
+    finally:
+        stop_server(s), db.close()
+
+
+def test_stats_failure_never_breaks_live(tmp_path):
+    s, tally, db = stats_server(tmp_path)
+    tally.add_live = lambda *a: 1 / 0
+    try:
+        assert get(s, "/live/18000", APP)[0] == 200
+    finally:
+        stop_server(s), db.close()
+
+
+def test_flusher_retries_failed_batch_without_duplicates(tmp_path):
+    from anden_api.server import run_flusher
+    from anden_api.stats import Tally
+    from anden_api.stats_db import StatsDB
+    tally, db = Tally(), StatsDB(tmp_path / "f.db")
+    tally.add_live(NOW, "18000", "1.2.3.4", "Anden/1.5")
+    real, calls = db.apply, []
+
+    def flaky(deltas):
+        calls.append(1)
+        if len(calls) == 1:
+            raise OSError("disk full")
+        real(deltas)
+
+    db.apply = flaky
+    stop = threading.Event()
+    log = io.StringIO()
+    th = threading.Thread(target=run_flusher, args=(tally, db, tmp_path / "bk", stop, log),
+                          kwargs={"clock": lambda: NOW, "every": 0.01}, daemon=True)
+    th.start()
+    for _ in range(300):
+        if len(calls) >= 2:
+            break
+        threading.Event().wait(0.01)
+    stop.set()
+    th.join(5)
+    assert db.days(None)[0]["requests"] == 1  # the failed batch was kept and stored once
+    assert "stats: OSError" in log.getvalue()
+    db.close()

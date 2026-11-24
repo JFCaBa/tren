@@ -24,3 +24,24 @@ cd server && sudo docker compose up -d --build && sudo docker compose logs --tai
 ```
 
 The APNs values are the team key's, the same as What Platform's `/opt/platform/.env`.
+
+## Stats (`/anden/admin`)
+
+`GET /live/<stop>` and new iPhone follows are counted in memory (`stats.py`) and flushed every
+minute to `/opt/anden/stats/stats.db` (aggregates only; daily copies in `backups/`, 7 kept).
+People are counted once a Madrid day with an HMAC of IP + app version under a key that lives only
+in memory; nginx sends the IP on `/anden/live/` only. The page is
+`https://api.whatplatform.uk/anden/admin`: nginx asks for the What Platform admin password
+(`/etc/nginx/platform-admin.htpasswd`) and adds `X-Admin-Key` from
+`/etc/nginx/anden-admin-key.conf`, which must equal `ANDEN_ADMIN_KEY` in `/opt/anden/.env`.
+
+Setup (once, on the VPS):
+
+```sh
+sudo install -d -o 10001 -g 10001 -m 750 /opt/anden/stats
+k=$(openssl rand -hex 32)
+printf '\nANDEN_ADMIN_KEY=%s\n' "$k" | sudo tee -a /opt/anden/.env >/dev/null
+sudo install -m 600 /dev/null /etc/nginx/anden-admin-key.conf   # private before the key goes in
+printf 'proxy_set_header X-Admin-Key "%s";\n' "$k" | sudo tee /etc/nginx/anden-admin-key.conf >/dev/null
+unset k
+```

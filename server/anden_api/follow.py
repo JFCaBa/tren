@@ -73,7 +73,8 @@ class FollowStore:
             self._ended.append(Ended(f.activity, f.env, f.state, dismiss_after if f.state else DISMISS_NOW))
 
     def upsert(self, token: str, env: str, train: dict, started: float, activity: str | None = None) -> str:
-        """"ok" or "busy". The same train keeps its readings and start (an app re-sync)."""
+        """"ok" (a new follow), "renewed" (the same train again: an app re-sync, it keeps its
+        readings and start) or "busy"."""
         with self._lock:
             cur = self._follows.get(token)
             if cur is not None and same_train(cur.train, train):
@@ -83,7 +84,7 @@ class FollowStore:
                     cur.act_gen += 1
                     cur.activity, cur.state = activity, None
                 cur.env = env
-                return "ok"
+                return "renewed"
             if cur is None and len(self._follows) >= self._max:
                 # Full (tokens are not verified up front): the oldest follow makes room.
                 oldest = min(self._follows.values(), key=lambda f: f.started)

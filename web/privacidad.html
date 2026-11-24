@@ -22,7 +22,7 @@
 <body>
 <header><h1>Andén</h1><p>Política de privacidad</p></header>
 <main>
-  <div class="card"><strong>En resumen:</strong> Andén no recoge datos personales ni los comparte. No hay cuentas, ni analítica, ni anuncios. La única excepción: si sigues un tren en un iPhone, el identificador de notificaciones del teléfono se guarda unas horas en nuestro servidor, solo en memoria (ver abajo).</div>
+  <div class="card"><strong>En resumen:</strong> Andén no recoge datos personales ni los comparte. No hay cuentas ni anuncios; solo contamos, de forma anónima, cuánta gente usa la app y qué estaciones consulta (ver «Estadísticas anónimas»). La única excepción: si sigues un tren en un iPhone, el identificador de notificaciones del teléfono se guarda unas horas en nuestro servidor, solo en memoria (ver abajo).</div>
 
   <h2>Responsable</h2>
   <p>${CONTACT_NAME}. Contacto: <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
@@ -36,11 +36,14 @@
   <h2>Conexiones de red</h2>
   <p>La app descarga información pública, sin enviar datos personales:</p>
   <ul>
-    <li><code>api.whatplatform.uk</code> — nuestro servidor: horarios de Cercanías ya procesados, retrasos y vías en tiempo real de la estación que estás viendo (para eso recibe el código de la estación) y, si sigues un tren, su estado (ver «Seguir un tren»). Estas consultas no se registran.</li>
+    <li><code>api.whatplatform.uk</code> — nuestro servidor: horarios de Cercanías ya procesados, retrasos y vías en tiempo real de la estación que estás viendo (para eso recibe el código de la estación) y, si sigues un tren, su estado (ver «Seguir un tren»). No se registran las consultas: solo se cuentan de forma anónima (ver «Estadísticas anónimas»).</li>
     <li><code>jfcaba.github.io</code> — copia de los mismos horarios (GitHub Pages), si nuestro servidor no responde.</li>
     <li><code>gtfsrt.renfe.com</code> — avisos de servicio y, si nuestro servidor no responde, la posición y los retrasos de los trenes (datos abiertos de Renfe).</li>
   </ul>
-  <p>Como en cualquier conexión a Internet, esos servidores reciben la dirección IP técnica necesaria para responder; Andén no la recoge ni la asocia a nada.</p>
+  <p>Como en cualquier conexión a Internet, esos servidores reciben la dirección IP técnica necesaria para responder; Andén no la guarda ni la asocia a nada (ver «Estadísticas anónimas»).</p>
+
+  <h2>Estadísticas anónimas</h2>
+  <p>Para saber cuánta gente usa Andén y qué estaciones se consultan más, nuestro servidor cuenta las consultas de tiempo real por estación y por hora, la versión de la app, cuántos trenes se siguen cada día y cuántas personas distintas la usan. Para esto último combina tu dirección IP y la versión de la app con una clave aleatoria que se borra cada día, de forma que no se puede revertir: la IP no se guarda nunca y el resultado solo se conserva en la memoria del servidor hasta que acaba el día, nunca en disco. Solo quedan totales (por ejemplo, «120 personas consultaron Atocha el lunes»), que no permiten saber quién eres ni seguirte de un día a otro.</p>
 
   <h2>Seguir un tren</h2>
   <p>Si sigues un tren, Andén te avisa si cambia su vía, se retrasa o se cancela, y muestra dónde está.</p>

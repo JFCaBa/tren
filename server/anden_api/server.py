@@ -3,10 +3,13 @@ POST /follow, DELETE /follow, GET /train/<trip>/<stop>, GET /live/<stop>, GET /h
 watches it on Renfe's open feeds and sends alerts and Live Activity updates through APNs.
 
 Privacy: requests are not logged; device and Live Activity tokens live in memory only and are
-never logged. Logged: `apns <status> <reason>`, `follow poller: <Class>`, the startup lines.
+never logged. Usage stats (stats.py): only aggregates, for the password-protected /admin page;
+the client IP (nginx sends it on /live only) and User-Agent are never stored. Logged:
+`apns <status> <reason>`, `follow poller: <Class>`, `stats: <Class>`, the startup lines.
 """
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import re
@@ -17,6 +20,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import TextIO
 
+from .admin import render_page, summary
 from .apns import Apns
 from .follow import MAX_DURATION, FollowStore, Poller
 from pathlib import Path
@@ -24,6 +28,8 @@ from pathlib import Path
 from .refresher import Refresher
 from .renfe import POSITIONS_URL, TRIPS_URL, Feed, parse_positions, parse_trips
 from .stations import StationTrips
+from .stats import Tally, madrid_day
+from .stats_db import StatsDB
 
 TOKEN_RE = re.compile(r"[0-9a-fA-F]{64,200}")
 ACTIVITY_TOKEN_RE = re.compile(r"[0-9a-fA-F]{64,512}")
@@ -90,6 +96,9 @@ def train_reading(trips, positions, trip: str, stop: str) -> dict:
 
 
 LIVE_PATH = re.compile(r"^/live/([0-9A-Za-z_-]{3,12})$")
+ADMIN_PATH = re.compile(r"^/admin(?:\?range=([a-z0-9]{1,8}))?$")
+ADMIN_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'"
+FLUSH_EVERY = 60.0
 LIVE_MAX_AGE = 90  # the app calls realtime older than 2 min stale (board.dart _rtMaxAge)
 
 
@@ -110,7 +119,8 @@ def station_reading(trips, trips_ts, positions, positions_ts, trip_ids, stop: st
 
 def make_server(host: str, port: int, *, follows: FollowStore | None, push, clock=time.time,
                 log: TextIO = sys.stderr, trips=None, positions=None, stations=None,
-                refresher=None) -> ThreadingHTTPServer:
+                refresher=None, stats: Tally | None = None, stats_db: StatsDB | None = None,
+                admin_key: str = "") -> ThreadingHTTPServer:
     class Handler(BaseHTTPRequestHandler):
         server_version = "anden-api"
         sys_version = ""
@@ -152,7 +162,39 @@ def make_server(host: str, port: int, *, follows: FollowStore | None, push, cloc
             m = LIVE_PATH.match(self.path)
             if m and stations is not None and trips is not None and positions is not None:
                 return self.live(m.group(1))
+            am = ADMIN_PATH.match(self.path)
+            if am:
+                return self.admin(am.group(1) or "")
             self.send_json(404, {"error": "not found"})
+
+        def count_live(self, now: float, stop: str):
+            if stats is None:
+                return
+            try:  # stats never break the board
+                stats.add_live(now, stop, self.headers.get("X-Real-IP") or None, self.headers.get("User-Agent") or "")
+            except Exception as e:
+                log.write(f"stats: {type(e).__name__}\n")
+
+        def admin(self, rng: str):
+            """The stats page, only with nginx's secret header (nginx asks for the password)."""
+            given = self.headers.get("X-Admin-Key") or ""
+            if not (admin_key and stats is not None and stats_db is not None
+                    and hmac.compare_digest(given.encode(), admin_key.encode())):
+                return self.send_json(404, {"error": "not found"})
+            now = clock()
+            today = madrid_day(now)
+            names = stations.names() if stations is not None else {}
+            page = render_page(summary(stats_db, today, rng, stats_db.visitors_base(today) + stats.visitors_today(now),
+                                       len(follows) if follows is not None else 0, names)).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(page)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Security-Policy", ADMIN_CSP)
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Referrer-Policy", "no-referrer")
+            self.end_headers()
+            self.wfile.write(page)
 
         def live(self, stop: str):
             now = clock()
@@ -165,10 +207,12 @@ def make_server(host: str, port: int, *, follows: FollowStore | None, push, cloc
             if refresher is not None:
                 refresher.touch(now, wake=t is None)
             if t is None:  # nothing fresh (Renfe down or frozen, or nobody asked lately): the app reads Renfe
-                return self.send_json(503, {"error": "unavailable"})
+                self.send_json(503, {"error": "unavailable"})
+                return self.count_live(now, stop)  # still someone looking at this station
             pos, pos_ts = positions.cached(now, LIVE_MAX_AGE) or (None, None)
             body = station_reading(t[0], t[1], pos, pos_ts, trip_ids, stop)
             self.send_json(200, body)
+            self.count_live(now, stop)
 
         def do_POST(self):
             if self.path != "/follow":
@@ -183,9 +227,15 @@ def make_server(host: str, port: int, *, follows: FollowStore | None, push, cloc
             token, env, train, started, activity = req
             if now - started >= MAX_DURATION:
                 return self.send_json(410, {"error": "gone"})
-            if follows.upsert(token, env, train, started, activity) != "ok":
+            result = follows.upsert(token, env, train, started, activity)
+            if result not in ("ok", "renewed"):
                 return self.send_json(503, {"error": "busy"})
             self.send_json(200, {"ok": True})
+            if stats is not None and result == "ok":  # a new follow, not an app re-sync
+                try:
+                    stats.add_follow(now)
+                except Exception as e:
+                    log.write(f"stats: {type(e).__name__}\n")
 
         def do_DELETE(self):
             if self.path != "/follow":
@@ -211,6 +261,37 @@ def make_server(host: str, port: int, *, follows: FollowStore | None, push, cloc
     return Server((host, port), Handler)
 
 
+def run_flusher(tally: Tally, db: StatsDB, backup_dir: Path, stop: threading.Event, log: TextIO,
+                clock=time.time, every: float = FLUSH_EVERY) -> None:
+    """Every `every` s the tally's counters go to SQLite; a batch that fails stays pending and is
+    retried first. A closed day is backed up once its counters are stored (a failed backup is
+    retried alone). One last round when `stop` is set. (Port of What Platform's.)"""
+    pending: list = []
+    backups: list[str] = []
+    while True:
+        stopping = stop.wait(every)
+        # Stopping: a second round stores what arrived while a failed batch was pending.
+        for _ in range(2 if stopping else 1):
+            try:
+                if not pending:
+                    pending = tally.drain(clock())
+                db.apply(pending)
+                backups += [d.day for d in pending if d.closed]
+                pending = []
+            except Exception as e:
+                log.write(f"stats: {type(e).__name__}\n")
+                break
+        while backups:
+            try:
+                db.backup(backup_dir, backups[0])
+                backups.pop(0)
+            except Exception as e:
+                log.write(f"stats: {type(e).__name__}\n")
+                break
+        if stopping:
+            return
+
+
 def main(env: dict | None = None) -> int:
     env = os.environ if env is None else env
     push = Apns.from_env(env)
@@ -220,8 +301,22 @@ def main(env: dict | None = None) -> int:
     stations = StationTrips(Path(env.get("ANDEN_DATA", "/opt/anden/data/current")))
     print("stations: loaded" if stations.refresh() else "stations: not loaded yet", file=sys.stderr)
     refresher = Refresher(trips, positions, stations)
+    tally, stats_db = Tally(), None
+    try:
+        stats_db = StatsDB(env.get("STATS_DB", "/stats/stats.db"))
+    except Exception as e:
+        print(f"stats: off ({type(e).__name__})", file=sys.stderr)
     httpd = make_server("0.0.0.0", 8520, follows=follows, push=push, trips=trips, positions=positions,
-                        stations=stations, refresher=refresher)
+                        stations=stations, refresher=refresher,
+                        stats=tally if stats_db is not None else None, stats_db=stats_db,
+                        admin_key=env.get("ANDEN_ADMIN_KEY", "").strip())
+    stop_stats = threading.Event()
+    flusher = None
+    if stats_db is not None:
+        flusher = threading.Thread(target=run_flusher, args=(
+            tally, stats_db, Path(env.get("STATS_BACKUP_DIR", "/stats/backups")), stop_stats, sys.stderr),
+            daemon=True)
+        flusher.start()
     stop = threading.Event()
     threading.Thread(target=refresher.run, args=(stop,), daemon=True).start()
     poller = None
@@ -238,6 +333,9 @@ def main(env: dict | None = None) -> int:
     signal.signal(signal.SIGTERM, on_term)
     print(f"listening on :{httpd.server_address[1]}", file=sys.stderr)
     httpd.serve_forever()
+    stop_stats.set()  # store the last minute of stats
+    if flusher is not None:
+        flusher.join(timeout=10)
     if poller is not None:
         poll_thread.join(timeout=15)
         poller.end_all()  # a deploy must not leave Live Activities frozen on lock screens

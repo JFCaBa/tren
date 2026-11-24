@@ -18,6 +18,7 @@ class StationTrips:
         self._gen: str | None = None
         self._failed: str | None = None  # a generation that could not be read: not retried
         self._index: dict[str, frozenset[str]] | None = None
+        self._names: dict[str, tuple[str, str]] = {}
 
     @property
     def loaded(self) -> bool:
@@ -33,6 +34,10 @@ class StationTrips:
     def known(self, stop_id: str) -> bool:
         index = self._index
         return index is not None and stop_id in index
+
+    def names(self) -> dict[str, tuple[str, str]]:
+        """stop_id → (station name, núcleo name) for /admin; empty while nothing is loaded."""
+        return self._names
 
     def _load_feed(self, path: Path) -> dict:
         with open(path, encoding="utf-8") as f:
@@ -57,11 +62,17 @@ class StationTrips:
                         tid = t["id"]
                         for stop, _ in t["times"]:
                             acc.setdefault(stop, set()).add(tid)
+                nucleos = {n["id"]: n.get("name") or "" for n in index["nucleos"]}
+                names = {}
+                for st in index.get("stops") or []:
+                    ns = st.get("nucleos") or [None]
+                    names[st["id"]] = (st.get("name") or st["id"], nucleos.get(ns[0], ""))
             except FileNotFoundError:
                 return False  # not built yet (or mid-swap): try again next time
             except (OSError, ValueError, KeyError, TypeError):
                 self._failed = gen
                 return False
             self._index = {s: frozenset(t) for s, t in acc.items()}
+            self._names = names
             self._gen = gen
             return True

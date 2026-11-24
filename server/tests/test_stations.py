@@ -108,3 +108,18 @@ def test_failed_generation_not_retried_until_it_changes(tmp_path):
     assert st.refresh() is False and len(reads) == n  # same broken generation: not parsed again
     point(tmp_path, write_gen(tmp_path, "gen.b", {"10": feed("10", {"T7": ["S1"]})}))
     assert st.refresh() is True and st.get("S1") == {"T7"}
+
+
+def test_names_from_index(tmp_path):
+    gen = write_gen(tmp_path, "gen.a", {"10": feed("10", {"T1": ["S1"]})})
+    import json as _j
+    idx = _j.loads((gen / "index.json").read_text())
+    idx["nucleos"][0]["name"] = "Madrid"
+    idx["stops"] = [{"id": "S1", "name": "Atocha", "nucleos": ["10"]}, {"id": "S2", "name": "Sin núcleo", "nucleos": []},
+                    {"id": "S3", "name": "Raro"}]
+    (gen / "index.json").write_text(_j.dumps(idx))
+    point(tmp_path, gen)
+    st = StationTrips(tmp_path / "current")
+    assert st.names() == {}
+    st.refresh()
+    assert st.names() == {"S1": ("Atocha", "Madrid"), "S2": ("Sin núcleo", ""), "S3": ("Raro", "")}

@@ -245,3 +245,11 @@ def test_full_store_evicts_oldest():
     store.upsert("b" * 64, "production", train(trip="B1"), T0 + 1, None)
     assert store.upsert("c" * 64, "production", train(trip="C1"), T0 + 2, None) == "ok"
     assert sorted(f.token[0] for f in store.all()) == ["b", "c"]
+
+
+def test_upsert_same_train_is_renewed():
+    store = FollowStore()
+    assert store.upsert(TOKEN, "production", train(), T0, None) == "ok"
+    assert store.upsert(TOKEN, "production", train(), T0, None) == "renewed"
+    assert store.upsert(TOKEN, "sandbox", train(), T0, ACT) == "renewed"  # env/activity change, same train
+    assert store.upsert(TOKEN, "production", train(trip="OTHER1"), T0, None) == "ok"

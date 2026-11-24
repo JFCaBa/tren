@@ -12,6 +12,7 @@ services:
       - /tmp
     volumes:
       - /opt/anden/data:/opt/anden/data:ro  # timetables (pipeline/vps/feed.sh); same path: `current` is an absolute symlink
+      - /opt/anden/stats:/stats  # aggregates for /admin (owned by uid 10001)
     security_opt:
       - no-new-privileges:true
     logging:
