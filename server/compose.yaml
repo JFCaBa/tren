@@ -10,6 +10,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    volumes:
+      - /opt/anden/data:/opt/anden/data:ro  # timetables (pipeline/vps/feed.sh); same path: `current` is an absolute symlink
     security_opt:
       - no-new-privileges:true
     logging:

@@ -28,6 +28,7 @@ class Sighting:
     stop_id: str
     status: str  # STOPPED_AT | INCOMING_AT | IN_TRANSIT_TO
     platform: str | None  # only while INCOMING_AT / STOPPED_AT that stop
+    at: int | None = None  # the vehicle's own timestamp
 
 
 def _int(v) -> int | None:
@@ -78,17 +79,18 @@ def parse_positions(j: dict) -> dict[str, Sighting]:
             m = _LABEL.match(label.strip())
             p = (m.group(3) or "").strip() if m else ""
             platform = p or None
-        out[tid] = Sighting(stop, status, platform)
+        out[tid] = Sighting(stop, status, platform, _int(v.get("timestamp")))
     return out
 
 
 class Feed:
     """One Renfe JSON feed with a conditional GET; keeps the last good answer. Thread-safe: the
-    poller and GET /train share it; a read within `min_interval` of the last one reuses it."""
+    poller, the refresher and GET /train share it; a read within `min_interval` of the last one
+    reuses it. Downloads are serialised by their own lock; `cached()` never waits for one."""
 
     def __init__(self, url: str, parse, timeout: float = 10.0, opener=urllib.request.urlopen,
                  min_interval: float = 20.0) -> None:
-        self._lock = threading.Lock()
+        self._lock = threading.Lock()  # held during a download
         self._min_interval = min_interval
         self._read_at: float | None = None
         self._url = url
@@ -96,8 +98,7 @@ class Feed:
         self._timeout = timeout
         self._open = opener
         self._etag: str | None = None
-        self._last = None
-        self._last_ts: int | None = None
+        self._snap: tuple | None = None  # (parsed, header timestamp), replaced as one object
 
     def fetch(self, now: float):
         """The parsed feed, or None when it can't be read or is older than MAX_AGE."""
@@ -105,11 +106,20 @@ class Feed:
             if self._read_at is not None and 0 <= now - self._read_at < self._min_interval:
                 return self._fresh(now)
             self._read_at = now
-            return self._fetch(now)
+            self._fetch()
+            return self._fresh(now)
 
-    def _fetch(self, now: float):
+    def cached(self, now: float, max_age: float = MAX_AGE):
+        """(parsed, header timestamp) of the last good feed if at most `max_age` old, else None.
+        Never downloads and never waits for a download (GET /live answers from memory)."""
+        snap = self._snap
+        if snap is None or snap[1] is None or now - snap[1] > max_age:
+            return None
+        return snap
+
+    def _fetch(self) -> None:
         headers = {"User-Agent": "anden-api/1.0"}
-        if self._etag and self._last is not None:
+        if self._etag and self._snap is not None:
             headers["If-None-Match"] = self._etag
         try:
             with self._open(urllib.request.Request(self._url, headers=headers), timeout=self._timeout) as r:
@@ -118,15 +128,10 @@ class Feed:
                     raise ValueError("feed too large")
                 etag = r.headers.get("ETag")
             j = json.loads(body.decode("utf-8"))
-            self._last, self._last_ts, self._etag = self._parse(j), feed_time(j), etag
-        except urllib.error.HTTPError as e:
-            if e.code != 304:
-                return self._fresh(now)
-        except Exception:
-            return self._fresh(now)
-        return self._fresh(now)
+            self._snap, self._etag = (self._parse(j), feed_time(j)), etag
+        except Exception:  # 304, offline, bad JSON: keep the last good one
+            pass
 
     def _fresh(self, now: float):
-        if self._last is None or self._last_ts is None or now - self._last_ts > MAX_AGE:
-            return None
-        return self._last
+        snap = self.cached(now)
+        return None if snap is None else snap[0]

@@ -74,3 +74,52 @@ def test_feed_min_interval_reuses_last_read():
     assert len(calls) == 1
     f.fetch(1021)
     assert len(calls) == 2
+
+
+def test_positions_keep_vehicle_timestamp():
+    j = {"entity": [{"vehicle": {"trip": {"tripId": "A"}, "stopId": "18000", "currentStatus": "STOPPED_AT",
+                                 "timestamp": "990", "vehicle": {"label": "C3-1-PLATF.(6)"}}}]}
+    assert parse_positions(j)["A"].at == 990
+    assert Sighting("1", "STOPPED_AT", None) == Sighting("1", "STOPPED_AT", None, None)
+
+
+def test_feed_cached_and_timestamp():
+    calls = []
+
+    def opener(req, timeout):
+        calls.append(1)
+        return Resp(json.dumps({"header": {"timestamp": 1000}, "entity": []}).encode())
+
+    f = Feed("https://example.test/t.json", parse_trips, opener=opener)
+    assert f.cached(1000) is None  # cached() never downloads
+    assert calls == []
+    f.fetch(1000)
+    assert f.cached(1100) == ({}, 1000)  # data and its own header timestamp, together
+    assert f.cached(1100, max_age=90) is None  # fresher limit for the board
+    assert f.cached(1301) is None  # older than 5 min
+    assert len(calls) == 1
+
+
+def test_cached_does_not_wait_for_a_download():
+    import threading
+    started, release = threading.Event(), threading.Event()
+    bodies = [json.dumps({"header": {"timestamp": 1000}, "entity": []}).encode(),
+              json.dumps({"header": {"timestamp": 1030}, "entity": []}).encode()]
+
+    def opener(req, timeout):
+        if len(bodies) == 1:  # second download: hang until released
+            started.set()
+            release.wait(5)
+        return Resp(bodies.pop(0))
+
+    f = Feed("https://example.test/t.json", parse_trips, opener=opener, min_interval=0)
+    f.fetch(1000)
+    th = threading.Thread(target=f.fetch, args=(1030,))
+    th.start()
+    assert started.wait(2)
+    t0 = __import__("time").monotonic()
+    assert f.cached(1030) == ({}, 1000)  # the last good one, right away
+    assert __import__("time").monotonic() - t0 < 0.5
+    release.set()
+    th.join(2)
+    assert f.cached(1031) == ({}, 1030)

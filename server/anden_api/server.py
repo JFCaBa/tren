@@ -1,9 +1,9 @@
 """Andén follow API (behind nginx at https://api.whatplatform.uk/anden/):
-POST /follow, DELETE /follow, GET /health. iPhones register the one train they follow; the poller
+POST /follow, DELETE /follow, GET /train/<trip>/<stop>, GET /live/<stop>, GET /health. iPhones register the one train they follow; the poller
 watches it on Renfe's open feeds and sends alerts and Live Activity updates through APNs.
 
 Privacy: requests are not logged; device and Live Activity tokens live in memory only and are
-never logged. Logged: `apns <status> <reason>`, `follow poller: <Class>`, the startup line.
+never logged. Logged: `apns <status> <reason>`, `follow poller: <Class>`, the startup lines.
 """
 from __future__ import annotations
 
@@ -19,7 +19,11 @@ from typing import TextIO
 
 from .apns import Apns
 from .follow import MAX_DURATION, FollowStore, Poller
+from pathlib import Path
+
+from .refresher import Refresher
 from .renfe import POSITIONS_URL, TRIPS_URL, Feed, parse_positions, parse_trips
+from .stations import StationTrips
 
 TOKEN_RE = re.compile(r"[0-9a-fA-F]{64,200}")
 ACTIVITY_TOKEN_RE = re.compile(r"[0-9a-fA-F]{64,512}")
@@ -85,8 +89,28 @@ def train_reading(trips, positions, trip: str, stop: str) -> dict:
     }
 
 
+LIVE_PATH = re.compile(r"^/live/([0-9A-Za-z_-]{3,12})$")
+LIVE_MAX_AGE = 90  # the app calls realtime older than 2 min stale (board.dart _rtMaxAge)
+
+
+def station_reading(trips, trips_ts, positions, positions_ts, trip_ids, stop: str) -> dict:
+    """Delays of the trains that call at `stop` and the platforms of those arriving or standing
+    there: what the app's board needs, instead of Renfe's two whole-country feeds."""
+    platforms = {}
+    for tid, p in (positions or {}).items():
+        if p.stop_id == stop and p.platform is not None:
+            platforms[tid] = {"platform": p.platform, "at": p.at if p.at is not None else positions_ts}
+    return {
+        "tripsAt": trips_ts,
+        "trips": {tid: {"delay": t.delay, "cancelled": t.cancelled} for tid, t in trips.items() if tid in trip_ids},
+        "positionsAt": positions_ts if positions is not None else None,
+        "platforms": platforms,
+    }
+
+
 def make_server(host: str, port: int, *, follows: FollowStore | None, push, clock=time.time,
-                log: TextIO = sys.stderr, trips=None, positions=None) -> ThreadingHTTPServer:
+                log: TextIO = sys.stderr, trips=None, positions=None, stations=None,
+                refresher=None) -> ThreadingHTTPServer:
     class Handler(BaseHTTPRequestHandler):
         server_version = "anden-api"
         sys_version = ""
@@ -125,7 +149,26 @@ def make_server(host: str, port: int, *, follows: FollowStore | None, push, cloc
                 now = clock()
                 body = train_reading(trips.fetch(now), positions.fetch(now), m.group(1), m.group(2))
                 return self.send_json(200, body)
+            m = LIVE_PATH.match(self.path)
+            if m and stations is not None and trips is not None and positions is not None:
+                return self.live(m.group(1))
             self.send_json(404, {"error": "not found"})
+
+        def live(self, stop: str):
+            now = clock()
+            trip_ids = stations.get(stop)
+            if trip_ids is None:
+                return self.send_json(503, {"error": "unavailable"})
+            if not stations.known(stop):
+                return self.send_json(404, {"error": "not found"})
+            t = trips.cached(now, LIVE_MAX_AGE)
+            if refresher is not None:
+                refresher.touch(now, wake=t is None)
+            if t is None:  # nothing fresh (Renfe down or frozen, or nobody asked lately): the app reads Renfe
+                return self.send_json(503, {"error": "unavailable"})
+            pos, pos_ts = positions.cached(now, LIVE_MAX_AGE) or (None, None)
+            body = station_reading(t[0], t[1], pos, pos_ts, trip_ids, stop)
+            self.send_json(200, body)
 
         def do_POST(self):
             if self.path != "/follow":
@@ -174,8 +217,13 @@ def main(env: dict | None = None) -> int:
     follows = FollowStore() if push is not None else None
     print("follow: on" if push else "follow: off (APNS_* missing or invalid)", file=sys.stderr)
     trips, positions = Feed(TRIPS_URL, parse_trips), Feed(POSITIONS_URL, parse_positions)
-    httpd = make_server("0.0.0.0", 8520, follows=follows, push=push, trips=trips, positions=positions)
+    stations = StationTrips(Path(env.get("ANDEN_DATA", "/opt/anden/data/current")))
+    print("stations: loaded" if stations.refresh() else "stations: not loaded yet", file=sys.stderr)
+    refresher = Refresher(trips, positions, stations)
+    httpd = make_server("0.0.0.0", 8520, follows=follows, push=push, trips=trips, positions=positions,
+                        stations=stations, refresher=refresher)
     stop = threading.Event()
+    threading.Thread(target=refresher.run, args=(stop,), daemon=True).start()
     poller = None
     if push is not None:
         poller = Poller(follows, trips, positions, push)

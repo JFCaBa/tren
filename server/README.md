@@ -5,6 +5,10 @@ Renfe's open GTFS-RT feeds (trip updates and vehicle positions) every 30 s and s
 Live Activity updates through APNs. Port of What Platform's API (repo JFCaBa/platform, `api/`).
 Tokens live in memory only and are never logged; requests are not logged.
 
+GET /live/<estación> gives the delays and live platforms of that station's trains (the app's
+board), from the timetables in `/opt/anden/data/current` (pipeline/vps/feed.sh) and Renfe's feeds,
+read in the background only while someone is asking.
+
 Public URL: `https://api.whatplatform.uk/anden/follow` (nginx location in the platform repo,
 `deploy/nginx/whatplatform.uk.conf`, proxies to 127.0.0.1:8520).
 
