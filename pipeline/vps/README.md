@@ -5,6 +5,9 @@ only): GitHub ran it 2-4 times a day instead of every 10 minutes, too rarely to 
 platform of most trains. On the VPS it runs every minute and publishes to `platform-data` every
 15 minutes. The nightly feed build reads that branch as before.
 
+**`platform-data` is a permanent data branch: never delete, merge or rebase it** — see
+[docs/platform-data.md](../../docs/platform-data.md) (what it holds, who reads it, how to restore it).
+
 Layout (user `ubuntu` on the VPS, no sudo):
 
 - `~/anden-platforms/src`: clone of this repo over SSH with a write deploy key
