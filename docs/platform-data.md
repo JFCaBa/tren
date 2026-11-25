@@ -45,6 +45,10 @@ Setup and the `platform-data moved` error: `pipeline/vps/README.md`.
 - A force-push to it is normal: that is how the collector publishes.
 - When cleaning up branches, `main` and `platform-data` are the two permanent branches.
 
+GitHub enforces the first rule: the repository ruleset "platform-data: no delete" (id 28079193,
+Settings → Rules) blocks deleting the branch, with no bypass. It deliberately does not block
+force-pushes, because the collector needs them. Do not remove that ruleset.
+
 ## If it is deleted by accident
 
 The VPS still has the data in its worktree. Push it back from there:
