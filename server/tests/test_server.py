@@ -525,3 +525,58 @@ def test_board_cached_15s_but_every_request_counted():
         assert (d.requests, d.visitors, d.versions) == (2, 1, {"web": 2})
     finally:
         stop_server(s)
+
+
+# ---- remembered live platforms (the app's rememberPlatformFor) ----
+
+def test_platform_memory_keeps_a_dropped_platform_20_minutes():
+    from anden_api.renfe import Sighting
+    from anden_api.server import PlatformMemory
+    m = PlatformMemory()
+    m.update({"T1": Sighting("65000", "STOPPED_AT", "3", int(NOW - 10))}, NOW - 5, NOW)
+    m.update({}, NOW + 60, NOW + 65)  # Renfe drops it while the train stands there
+    assert m.at("65000", NOW + 65) == {"T1": "3"}
+    assert m.at("64200", NOW + 65) == {}
+    assert m.at("65000", NOW - 10 + 20 * 60 + 1) == {}  # forgotten after 20 min
+
+
+def test_platform_memory_newer_sighting_replaces_and_old_ones_ignored():
+    from anden_api.renfe import Sighting
+    from anden_api.server import PlatformMemory
+    m = PlatformMemory()
+    m.update({"T1": Sighting("65000", "INCOMING_AT", "3", int(NOW - 10))}, NOW - 5, NOW)
+    m.update({"T1": Sighting("65000", "STOPPED_AT", "4", int(NOW + 20))}, NOW + 25, NOW + 30)
+    assert m.at("65000", NOW + 30) == {"T1": "4"}
+    m.update({"T2": Sighting("65000", "STOPPED_AT", "9", int(NOW - 600))}, NOW + 25, NOW + 30)  # stale sighting
+    assert "T2" not in m.at("65000", NOW + 30)
+
+
+def test_board_shows_remembered_platform_after_renfe_drops_it():
+    from anden_api.renfe import Sighting, Trip
+    pos = FakeLiveFeed({"4028X18094C1": Sighting("65000", "STOPPED_AT", "3", int(NOW - 20))}, ts=NOW - 10)
+    clock = [NOW]
+    from anden_api.stats import Tally
+    s = make_server("127.0.0.1", 0, follows=None, push=None, clock=lambda: clock[0], log=io.StringIO(),
+                    trips=FakeLiveFeed({"4028X18094C1": Trip(0, False)}, ts=NOW - 10), positions=pos,
+                    stations=FakeBoardStations(), refresher=FakeRefresher(), stats=Tally())
+    threading.Thread(target=s.serve_forever, daemon=True).start()
+    try:
+        assert json.loads(get(s, "/board/65000", WEB)[2])["departures"][0]["livePlatform"] == "3"
+        clock[0] = NOW + 20  # past the 15 s cache
+        pos.value, pos.ts = {}, NOW + 15
+        assert json.loads(get(s, "/board/65000", WEB)[2])["departures"][0]["livePlatform"] == "3"
+    finally:
+        stop_server(s)
+
+
+def test_board_without_realtime_not_cached_so_the_next_request_gets_it():
+    from anden_api.renfe import Trip
+    trips = FakeLiveFeed(None, ts=None)  # idle: the refresher is just waking
+    s, _, _ = board_server(trips, FakeLiveFeed({}))
+    try:
+        assert json.loads(get(s, "/board/65000", WEB)[2])["rtStale"] is True
+        trips.value, trips.ts = {"4028X18094C1": Trip(60, False)}, NOW - 2
+        b = json.loads(get(s, "/board/65000", WEB)[2])
+        assert b["rtStale"] is False and b["departures"][0]["delay"] == 60
+    finally:
+        stop_server(s)

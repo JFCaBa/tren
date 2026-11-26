@@ -1,7 +1,7 @@
 // Andén on the web (andenapp.com): home (search, location, popular stations) and /estacion/{id}
 // boards. Same board as the app's home screen (app/lib/ui/home_screen.dart), minus following,
 // widgets and the destination filter. Port of the platform repo's site/js/app.js.
-import { fetchJson, ApiError, validBoard, validStations } from './api.js';
+import { fetchJson, ApiError, validBoard, validStations, retryAfterMs } from './api.js';
 import { parseRoute, extraBelongs } from './route.js';
 import { nearestStations, searchStations, formatDistance } from './stations.js';
 import { waitText, delayMinutes, isLate, platformText, hhmm, shortStopName, liveText } from './text.js';
@@ -261,6 +261,8 @@ async function doRefresh() {
     const b = await fetchJson(`/api/board/${id}`, fetch, abort.signal);
     if (myGen !== gen) return;
     if (!validBoard(b)) throw new ApiError('unavailable');
+    const again = retryAfterMs(s.board, b);
+    if (again != null) setTimeout(() => { if (myGen === gen) refresh(); }, again);
     s.board = b;
     s.failed = null;
   } catch (e) {

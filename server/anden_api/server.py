@@ -134,10 +134,40 @@ def live_platforms(positions, positions_ts, stop: str, now: float) -> dict[str, 
     return out
 
 
+REMEMBER_PLATFORM_FOR = 20 * 60  # s: the app's rememberPlatformFor
+
+
+class PlatformMemory:
+    """The app's seen platforms (app_controller.dart _rememberPlatforms): Renfe shows a platform only
+    while the train arrives and sometimes drops it while the train stands there, so a fresh
+    sighting is kept 20 min (by Renfe's own time) for every station."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._seen: dict[tuple[str, str], tuple[str, float]] = {}  # (stop, trip) → (platform, at)
+
+    def update(self, positions, positions_ts, now: float) -> None:
+        if not positions:
+            return
+        with self._lock:
+            for tid, p in positions.items():
+                at = p.at if p.at is not None else positions_ts
+                if p.platform is not None and at is not None and abs(now - at) <= SIGHTING_MAX_AGE:
+                    self._seen[(p.stop_id, tid)] = (p.platform, at)
+            for k in [k for k, (_, at) in self._seen.items() if abs(now - at) > REMEMBER_PLATFORM_FOR]:
+                del self._seen[k]
+
+    def at(self, stop: str, now: float) -> dict[str, str]:
+        with self._lock:
+            return {tid: plat for (s, tid), (plat, at) in self._seen.items()
+                    if s == stop and abs(now - at) <= REMEMBER_PLATFORM_FOR}
+
+
 def make_server(host: str, port: int, *, follows: FollowStore | None, push, clock=time.time,
                 log: TextIO = sys.stderr, trips=None, positions=None, stations=None,
                 refresher=None, stats: Tally | None = None, stats_db: StatsDB | None = None,
                 admin_key: str = "") -> ThreadingHTTPServer:
+    platforms_seen = PlatformMemory()
     boards: dict[str, tuple[float, dict]] = {}  # stop → (computed at, board), for BOARD_TTL
     boards_lock = threading.Lock()
 
@@ -247,21 +277,23 @@ def make_server(host: str, port: int, *, follows: FollowStore | None, push, cloc
                 return self.send_json(404, {"error": "not found"})
             with boards_lock:
                 hit = boards.get(stop)
-            if hit is not None and now - hit[0] < BOARD_TTL:
+            if hit is not None and 0 <= now - hit[0] < BOARD_TTL:
                 body = hit[1]
             else:
                 t = trips.cached(now, BOARD_RT_MAX_AGE)
                 if refresher is not None:
                     refresher.touch(now, wake=t is None)
                 pos, pos_ts = positions.cached(now, BOARD_RT_MAX_AGE) or (None, None)
-                b = compute_board(feeds, stop, now, t[0] if t else None, t[1] if t else None,
-                                  live_platforms(pos, pos_ts, stop, now))
+                platforms_seen.update(pos, pos_ts, now)
+                live = {**platforms_seen.at(stop, now), **live_platforms(pos, pos_ts, stop, now)}
+                b = compute_board(feeds, stop, now, t[0] if t else None, t[1] if t else None, live)
                 body = {"generatedAt": datetime.fromtimestamp(now, timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
                         "station": info, **b}
                 with boards_lock:
-                    for k in [k for k, (ts, _) in boards.items() if now - ts >= BOARD_TTL]:
+                    for k in [k for k, (ts, _) in boards.items() if not 0 <= now - ts < BOARD_TTL]:
                         del boards[k]
-                    boards[stop] = (now, body)
+                    if t is not None:  # without real time the refresher is waking: the next request gets it
+                        boards[stop] = (now, body)
             self.send_json(200, body)
             self.count_live(now, stop)
 
