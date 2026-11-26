@@ -1,4 +1,5 @@
-"""Render the legal/support page templates (web/*.html) into the Pages site.
+"""Render the legal/support page templates (web/*.html) into the Pages site; icons (*.ico, *.png)
+are copied as they are.
 
 Contact details come from the CONTACT_EMAIL / CONTACT_NAME environment variables (GitHub repo
 variables in CI); they are never stored in the repo. Missing or invalid values never fail the run
@@ -9,6 +10,7 @@ is printed.
 import html
 import os
 import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -55,6 +57,8 @@ def main(argv=None) -> int:
             print(f"warning: {page.name}: {w}", file=sys.stderr)
         (dst / page.name).write_text(out, encoding="utf-8")
         print(f"rendered {page.name}")
+    for icon in sorted([*src.glob("*.ico"), *src.glob("*.png")]):
+        shutil.copyfile(icon, dst / icon.name)  # binary: copied as is
     return 0
 
 
