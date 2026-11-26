@@ -121,12 +121,12 @@ class BuildTest(unittest.TestCase):
     def test_a_to_z_accented_names_sort_with_their_letter(self):
         with tempfile.TemporaryDirectory() as tmp:
             st = [{"id": "00001", "name": "Álora", "lat": 36.8, "lon": -4.7, "nucleos": ["10"]},
-                  {"id": "00002", "name": "Alcalá", "lat": 40.5, "lon": -3.4, "nucleos": ["10"]},
+                  {"id": "00002", "name": "Alpedrete", "lat": 40.5, "lon": -3.4, "nucleos": ["10"]},
                   {"id": "00003", "name": "Bilbao", "lat": 43.3, "lon": -2.9, "nucleos": ["60"]}]
             out = Path(tmp) / "b"
             build(write_data(tmp, st), SITE / "index.html", LEGAL, Path(tmp) / "x.env", out, min_count=1)
             p = (out / "estaciones.html").read_text(encoding="utf-8")
-            self.assertLess(p.index("Alcalá"), p.index("Álora"))
+            self.assertLess(p.index("Álora"), p.index("Alpedrete"))
             self.assertLess(p.index("Álora"), p.index('<h2 id="B">'))
 
     def test_sitemap_lists_home_pages_and_every_station(self):
