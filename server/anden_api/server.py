@@ -256,7 +256,7 @@ def make_server(host: str, port: int, *, follows: FollowStore | None, push, cloc
                 pos, pos_ts = positions.cached(now, BOARD_RT_MAX_AGE) or (None, None)
                 b = compute_board(feeds, stop, now, t[0] if t else None, t[1] if t else None,
                                   live_platforms(pos, pos_ts, stop, now))
-                body = {"generatedAt": datetime.fromtimestamp(now, timezone.utc).isoformat().replace("+00:00", "Z"),
+                body = {"generatedAt": datetime.fromtimestamp(now, timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
                         "station": info, **b}
                 with boards_lock:
                     for k in [k for k, (ts, _) in boards.items() if now - ts >= BOARD_TTL]:
