@@ -321,13 +321,14 @@ function timeEl(d) {
 }
 
 function trainRow(d, now) {
-  const open = s.openTrip === d.tripId;
+  const key = `${d.tripId}@${d.scheduled}`; // a trip id can run on several days
+  const open = s.openTrip === key;
   const plat = platformText(d);
   const wait = d.cancelled ? h('span', { class: 'st-bad' }, 'Cancelado')
     : h('span', { class: isLate(d) ? 'st-late' : '' }, waitText(minutesLeft(d, now)));
-  const toggle = () => toggleStops(d.tripId);
+  const toggle = () => toggleStops(key);
   return [
-    h('div', { class: d.cancelled ? 'row cancelled' : 'row', role: 'button', tabindex: 0, 'data-key': `t:${d.tripId}@${d.scheduled}`,
+    h('div', { class: d.cancelled ? 'row cancelled' : 'row', role: 'button', tabindex: 0, 'data-key': `t:${key}`,
       'aria-expanded': String(open), onclick: toggle,
       onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } } },
     lineBadge(d),

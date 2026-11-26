@@ -299,6 +299,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     link = Path(args.out)
+    link.parent.mkdir(parents=True, exist_ok=True)
     with open(link.parent / f".{link.name}.lock", "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)  # a manual run and the nightly one never overlap
         build_dir = link.with_name(f"{link.name}-{time.strftime('%Y%m%d%H%M%S', time.gmtime())}-{time.time_ns() % 10**9}")

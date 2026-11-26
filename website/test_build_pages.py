@@ -243,6 +243,14 @@ class PublishTest(unittest.TestCase):
                 build_pages.shutil.rmtree = real
             self.assertTrue((web / "estacion" / "65000.html").exists())
 
+    def test_out_parent_created_when_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_data(tmp)
+            out = Path(tmp) / "new" / "current"
+            self.assertEqual(main(["--data", str(Path(tmp) / "data"), "--site", str(SITE), "--legal", str(LEGAL),
+                                   "--contact-env", str(Path(tmp) / "none.env"), "--out", str(out), "--min-count", "1"]), 0)
+            self.assertTrue((out / "estacion" / "65000.html").exists())
+
     def test_publish_refuses_a_plain_directory(self):
         with tempfile.TemporaryDirectory() as tmp:
             web = Path(tmp) / "web"
