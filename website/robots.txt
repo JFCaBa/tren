@@ -1,4 +1,3 @@
 User-agent: *
 Allow: /
-Disallow: /api/
 Sitemap: https://andenapp.com/sitemap.xml
