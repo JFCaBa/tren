@@ -1,0 +1,14 @@
+/* Andén legal and support pages (web/*.html), shared; no inline styles (site CSP). */
+  :root { --brand: #0F766E; --ink: #1f2933; --muted: #52606d; --bg: #ffffff; --card: #f0fdfa; }
+  @media (prefers-color-scheme: dark) { :root { --ink: #e5e7eb; --muted: #9ca3af; --bg: #0b1514; --card: #12302d; } }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--brand); color: #fff; padding: 28px 16px; }
+  header h1 { margin: 0; font-size: 28px; }
+  header p { margin: 4px 0 0; opacity: .85; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+  h2 { font-size: 20px; margin-top: 32px; }
+  h3 { font-size: 17px; margin-bottom: 4px; }
+  .card { background: var(--card); border-radius: 12px; padding: 16px; }
+  a { color: var(--brand); }
+  @media (prefers-color-scheme: dark) { a { color: #5eead4; } }
+  small { color: var(--muted); }

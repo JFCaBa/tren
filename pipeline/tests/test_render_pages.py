@@ -54,10 +54,12 @@ class RenderPagesTest(unittest.TestCase):
             src.mkdir()
             (src / "favicon.ico").write_bytes(b"\x00\x00\x01\x00${CONTACT_EMAIL}")
             (src / "favicon.png").write_bytes(b"\x89PNG")
+            (src / "legal.css").write_text("h2 { }")
             proc = subprocess.run([sys.executable, str(SCRIPT), str(src), str(dst)], capture_output=True, text=True)
             self.assertEqual(0, proc.returncode, proc.stderr)
             self.assertEqual(b"\x00\x00\x01\x00${CONTACT_EMAIL}", (dst / "favicon.ico").read_bytes())
             self.assertEqual(b"\x89PNG", (dst / "favicon.png").read_bytes())
+            self.assertEqual("h2 { }", (dst / "legal.css").read_text())
 
 
 if __name__ == "__main__":
