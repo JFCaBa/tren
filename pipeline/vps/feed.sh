@@ -64,4 +64,13 @@ for d in "$OUT"/gen.*; do
   [ "$d" = "$gen" ] || [ "$d" = "$old_gen" ] || rm -rf "$d"
 done
 
+# The website's pages (andenapp.com) from the new timetables: script, template and JS from the served
+# checkout. Optional (no /opt/anden/pages yet) and never fails the feed: a failed build leaves the
+# published pages as they were.
+step=pages
+if [ -d "${ANDEN_PAGES_DIR:-/opt/anden/pages}" ]; then
+  python3 "${ANDEN_WEB_REPO:-/opt/anden/repo}/website/build_pages.py" --data "$OUT/current" \
+    --out "${ANDEN_PAGES_DIR:-/opt/anden/pages}/current" || echo "$(stamp) pages failed (published pages unchanged)"
+fi
+
 echo "$(stamp) ok $(find "$gen/feeds" -name '*.json' 2>/dev/null | wc -l | tr -d ' ') núcleos"

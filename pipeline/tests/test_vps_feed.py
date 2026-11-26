@@ -49,8 +49,8 @@ class FeedShTest(unittest.TestCase):
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(content)
 
-    def run_sh(self, build=None, fail=False, seed="https://seed.invalid/tren"):
-        env = dict(os.environ, ANDEN_DATA_DIR=str(self.out), ANDEN_PLATFORMS=str(self.tmp / "platforms.json"),
+    def run_sh(self, build=None, fail=False, seed="https://seed.invalid/tren", **extra):
+        env = dict(os.environ, **extra, ANDEN_DATA_DIR=str(self.out), ANDEN_PLATFORMS=str(self.tmp / "platforms.json"),
                    ANDEN_SEED=seed, FAKE_ARGS=str(self.args_log), FAKE_SRC=str(self.src),
                    ANDEN_BUILD=build or f"{sys.executable} {self.tmp / 'fake_build.py'}")
         if fail:
@@ -69,6 +69,28 @@ class FeedShTest(unittest.TestCase):
 
     def log(self):
         return (self.out / "feed.log").read_text()
+
+    def test_builds_website_pages_after_publishing(self):
+        stops = [{"id": f"{i:05d}", "name": f"S{i}", "lat": 40.0 + i / 100, "lon": -3.0, "nucleos": ["10"]} for i in range(3)]
+        self.files({"index.json": json.dumps({"generated_at": "2026-11-26T02:30:00Z", "stops": stops,
+                                              "nucleos": [{"id": "10", "name": "Madrid", "feed": "feeds/10.json"}]}),
+                    "feeds/10.json": "{}"})
+        pages = self.tmp / "pages"
+        pages.mkdir()
+        repo = HERE.parents[1]
+        # min-count 800 refuses 3 stations: the feed still publishes and says the pages failed
+        r = self.run_sh(ANDEN_PAGES_DIR=str(pages), ANDEN_WEB_REPO=str(repo))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue((self.current() / "index.json").exists())
+        log = (self.out / "feed.log").read_text()
+        self.assertIn("pages failed", log)
+        self.assertFalse((pages / "current").exists())
+
+    def test_no_pages_dir_no_pages(self):
+        self.files({"index.json": "{}"})
+        r = self.run_sh(ANDEN_PAGES_DIR=str(self.tmp / "nope"))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("pages", (self.out / "feed.log").read_text())
 
     def test_first_run_seeds_from_pages(self):
         self.files({"index.json": "{}", "feeds/10.json": "a"})

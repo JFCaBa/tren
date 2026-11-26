@@ -62,3 +62,31 @@ sudo install -d -o ubuntu -g ubuntu -m 755 /opt/anden/data
 
 The cron does not run the tests: after `git -C ~/anden-platforms/src pull --ff-only`, run
 `cd ~/anden-platforms/src/pipeline && python3 -m unittest discover -s tests`.
+
+## Website (`andenapp.com`)
+
+The static site is `website/` of the served checkout `/opt/anden/repo` (same as the API's). Its
+crawlable pages (one per station, A–Z, sitemap, search list, privacy and help) are built by
+`website/build_pages.py` into `/opt/anden/pages/current` (a symlink swapped atomically), after
+every nightly feed (`feed.sh`, step `pages`; a failure is logged and the published pages stay).
+nginx: `pipeline/vps/andenapp.com.conf`; `/api/board/<id>` goes to the Andén API's `/board/<id>`.
+
+First time:
+
+```bash
+sudo install -d -o ubuntu -g ubuntu /opt/anden/pages
+sudo install -o ubuntu -m 600 /dev/null /opt/anden/web.env   # CONTACT_NAME=… and CONTACT_EMAIL=… (legal pages)
+python3 /opt/anden/repo/website/build_pages.py                # as ubuntu: "887 stations -> …"
+# DNS: A andenapp.com and A www.andenapp.com -> the VPS (Cloudflare, DNS only, no proxy)
+sudo cp /opt/anden/repo/pipeline/vps/andenapp.com.conf /etc/nginx/sites-available/andenapp.com.conf
+# certificate first, with only the :80 server block enabled (comment out the 443 ones), then:
+sudo certbot certonly --webroot -w /var/www/certbot -d andenapp.com -d www.andenapp.com
+sudo ln -sf /etc/nginx/sites-available/andenapp.com.conf /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+After a `git pull` in `/opt/anden/repo` that touches `website/`, run `build_pages.py` again (as
+ubuntu) so the station pages carry the new template.
+
+Check: `curl -sI https://andenapp.com/estacion/65000` (200), `/estacion/99999` (404),
+`curl -s https://andenapp.com/api/board/65000 | head -c 200`.
