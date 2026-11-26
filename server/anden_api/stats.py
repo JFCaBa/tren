@@ -23,6 +23,10 @@ MADRID = ZoneInfo("Europe/Madrid")
 # version row, so it cannot inflate the counts or flood /admin.
 VERSION_RE = re.compile(r"^Anden/([0-9]{1,3}(?:\.[0-9]{1,3}){0,2})(?:\s|$)")
 OTHER = "otro"
+# The website (andenapp.com, GET /board): a browser counts as a person with version «web», like
+# What Platform's stats; bots, crawlers, link previews and headless tools do not.
+WEB = "web"
+NOT_A_PERSON_RE = re.compile(r"bot|crawl|spider|preview|headless", re.IGNORECASE)
 
 
 @dataclasses.dataclass
@@ -47,7 +51,9 @@ def madrid_hour(ts: float) -> int:
 
 def _version(ua: str) -> str:
     m = VERSION_RE.match(ua)
-    return m.group(1) if m else OTHER
+    if m:
+        return m.group(1)
+    return WEB if ua.startswith("Mozilla/") and not NOT_A_PERSON_RE.search(ua) else OTHER
 
 
 class _Day:

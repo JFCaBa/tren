@@ -1,10 +1,11 @@
 """Andén follow API (behind nginx at https://api.whatplatform.uk/anden/):
-POST /follow, DELETE /follow, GET /train/<trip>/<stop>, GET /live/<stop>, GET /health. iPhones register the one train they follow; the poller
+POST /follow, DELETE /follow, GET /train/<trip>/<stop>, GET /live/<stop>, GET /board/<stop> (the
+website's board, andenapp.com), GET /health. iPhones register the one train they follow; the poller
 watches it on Renfe's open feeds and sends alerts and Live Activity updates through APNs.
 
 Privacy: requests are not logged; device and Live Activity tokens live in memory only and are
 never logged. Usage stats (stats.py): only aggregates, for the password-protected /admin page;
-the client IP (nginx sends it on /live only) and User-Agent are never stored. Logged:
+the client IP (nginx sends it on /live and /board only) and User-Agent are never stored. Logged:
 `apns <status> <reason>`, `follow poller: <Class>`, `stats: <Class>`, the startup lines.
 """
 from __future__ import annotations
@@ -17,11 +18,13 @@ import signal
 import sys
 import threading
 import time
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import TextIO
 
 from .admin import render_page, summary
 from .apns import Apns
+from .board import compute_board
 from .follow import MAX_DURATION, FollowStore, Poller
 from pathlib import Path
 
@@ -96,6 +99,10 @@ def train_reading(trips, positions, trip: str, stop: str) -> dict:
 
 
 LIVE_PATH = re.compile(r"^/live/([0-9A-Za-z_-]{3,12})$")
+BOARD_PATH = re.compile(r"^/board/([0-9]{5})$")
+BOARD_TTL = 15  # s: many web viewers of one station cost one computation
+BOARD_RT_MAX_AGE = 120  # s: the app's 2 min (board.dart _rtMaxAge); /live keeps LIVE_MAX_AGE
+SIGHTING_MAX_AGE = 120  # s: a fresh feed can carry an old sighting (app's positionsMaxAge)
 ADMIN_PATH = re.compile(r"^/admin(?:\?range=([a-z0-9]{1,8}))?$")
 ADMIN_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'"
 FLUSH_EVERY = 60.0
@@ -117,10 +124,23 @@ def station_reading(trips, trips_ts, positions, positions_ts, trip_ids, stop: st
     }
 
 
+def live_platforms(positions, positions_ts, stop: str, now: float) -> dict[str, str]:
+    """trip → platform of trains reported at `stop` within the last 2 minutes (app's platformsAt)."""
+    out = {}
+    for tid, p in (positions or {}).items():
+        at = p.at if p.at is not None else positions_ts
+        if p.stop_id == stop and p.platform is not None and at is not None and now - at <= SIGHTING_MAX_AGE:
+            out[tid] = p.platform
+    return out
+
+
 def make_server(host: str, port: int, *, follows: FollowStore | None, push, clock=time.time,
                 log: TextIO = sys.stderr, trips=None, positions=None, stations=None,
                 refresher=None, stats: Tally | None = None, stats_db: StatsDB | None = None,
                 admin_key: str = "") -> ThreadingHTTPServer:
+    boards: dict[str, tuple[float, dict]] = {}  # stop → (computed at, board), for BOARD_TTL
+    boards_lock = threading.Lock()
+
     class Handler(BaseHTTPRequestHandler):
         server_version = "anden-api"
         sys_version = ""
@@ -162,6 +182,9 @@ def make_server(host: str, port: int, *, follows: FollowStore | None, push, cloc
             m = LIVE_PATH.match(self.path)
             if m and stations is not None and trips is not None and positions is not None:
                 return self.live(m.group(1))
+            m = BOARD_PATH.match(self.path)
+            if m and stations is not None and trips is not None and positions is not None:
+                return self.board(m.group(1))
             am = ADMIN_PATH.match(self.path)
             if am:
                 return self.admin(am.group(1) or "")
@@ -211,6 +234,34 @@ def make_server(host: str, port: int, *, follows: FollowStore | None, push, cloc
                 return self.count_live(now, stop)  # still someone looking at this station
             pos, pos_ts = positions.cached(now, LIVE_MAX_AGE) or (None, None)
             body = station_reading(t[0], t[1], pos, pos_ts, trip_ids, stop)
+            self.send_json(200, body)
+            self.count_live(now, stop)
+
+        def board(self, stop: str):
+            now = clock()
+            feeds = stations.feeds_for(stop)
+            if feeds is None:
+                return self.send_json(503, {"error": "unavailable"})
+            info = stations.station(stop)
+            if not feeds or info is None:
+                return self.send_json(404, {"error": "not found"})
+            with boards_lock:
+                hit = boards.get(stop)
+            if hit is not None and now - hit[0] < BOARD_TTL:
+                body = hit[1]
+            else:
+                t = trips.cached(now, BOARD_RT_MAX_AGE)
+                if refresher is not None:
+                    refresher.touch(now, wake=t is None)
+                pos, pos_ts = positions.cached(now, BOARD_RT_MAX_AGE) or (None, None)
+                b = compute_board(feeds, stop, now, t[0] if t else None, t[1] if t else None,
+                                  live_platforms(pos, pos_ts, stop, now))
+                body = {"generatedAt": datetime.fromtimestamp(now, timezone.utc).isoformat().replace("+00:00", "Z"),
+                        "station": info, **b}
+                with boards_lock:
+                    for k in [k for k, (ts, _) in boards.items() if now - ts >= BOARD_TTL]:
+                        del boards[k]
+                    boards[stop] = (now, body)
             self.send_json(200, body)
             self.count_live(now, stop)
 

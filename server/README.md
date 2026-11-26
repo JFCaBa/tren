@@ -9,6 +9,12 @@ GET /live/<estación> gives the delays and live platforms of that station's trai
 board), from the timetables in `/opt/anden/data/current` (pipeline/vps/feed.sh) and Renfe's feeds,
 read in the background only while someone is asking.
 
+GET /board/<estación> (5-digit stop id) is the website's board (andenapp.com proxies
+`/api/board/<id>` here, `pipeline/vps/andenapp.com.conf`): the next 8 trains already merged with
+real time by `board.py`, the app's `computeBoard` in Python. Always 200 for a known station
+(scheduled times with `rtStale: true` when Renfe's data is not fresh), 404 unknown, 503 before the
+timetables load. Each station's board is kept 15 s in memory; every request is still counted.
+
 Public URL: `https://api.whatplatform.uk/anden/follow` (nginx location in the platform repo,
 `deploy/nginx/whatplatform.uk.conf`, proxies to 127.0.0.1:8520).
 
@@ -27,10 +33,11 @@ The APNs values are the team key's, the same as What Platform's `/opt/platform/.
 
 ## Stats (`/anden/admin`)
 
-`GET /live/<stop>` and new iPhone follows are counted in memory (`stats.py`) and flushed every
+`GET /live/<stop>`, `GET /board/<stop>` and new iPhone follows are counted in memory (`stats.py`) and flushed every
 minute to `/opt/anden/stats/stats.db` (aggregates only; daily copies in `backups/`, 7 kept).
 People are counted once a Madrid day with an HMAC of IP + app version under a key that lives only
-in memory; nginx sends the IP on `/anden/live/` only. The page is
+in memory; nginx sends the IP on `/anden/live/` and andenapp.com `/api/board/` only. A browser
+(`Mozilla/…`, not a bot, crawler, link preview or headless tool) counts as version «web». The page is
 `https://api.whatplatform.uk/anden/admin`: nginx asks for the What Platform admin password
 (`/etc/nginx/platform-admin.htpasswd`) and adds `X-Admin-Key` from
 `/etc/nginx/anden-admin-key.conf`, which must equal `ANDEN_ADMIN_KEY` in `/opt/anden/.env`.

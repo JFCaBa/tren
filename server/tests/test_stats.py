@@ -170,3 +170,18 @@ def test_only_numeric_versions_count_as_people():
     [d] = t.drain(ts + 1)
     assert d.visitors == 1 and d.stations == {"18000": (1, 52)}
     assert d.versions == {"otro": 50, "1.5": 2}
+
+
+def test_browser_counts_as_web_person():
+    t = Tally()
+    t.add_live(utc(*D, 10), "18000", "203.0.113.9", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)")
+    [d] = t.drain(utc(*D, 10))
+    assert (d.visitors, d.versions) == (1, {"web": 1})
+
+
+def test_bot_browser_ua_is_otro():
+    t = Tally()
+    for ua in ("Mozilla/5.0 (compatible; Googlebot/2.1)", "Mozilla/5.0 HeadlessChrome/120", "Mozilla/5.0 (link preview)"):
+        t.add_live(utc(*D, 10), "18000", "203.0.113.9", ua)
+    [d] = t.drain(utc(*D, 10))
+    assert (d.visitors, d.versions) == (0, {"otro": 3})

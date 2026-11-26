@@ -392,3 +392,136 @@ def test_flusher_retries_failed_batch_without_duplicates(tmp_path):
     assert db.days(None)[0]["requests"] == 1  # the failed batch was kept and stored once
     assert "stats: OSError" in log.getvalue()
     db.close()
+
+
+# ---- /board ----
+
+def board_feed():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    madrid = ZoneInfo("Europe/Madrid")
+    local = datetime.fromtimestamp(NOW, madrid)
+    day = local.date().isoformat()
+    secs = local.hour * 3600 + local.minute * 60 + 600  # leaves in 10 minutes
+    return {"version": 2, "nucleo": "40", "name": "Valencia", "generated_at": "2027-01-15T02:30:00Z",
+            "valid_from": day, "valid_to": day, "lines": {"C1": "7AB3DE"},
+            "stops": [{"id": "65000", "name": "València Nord"}, {"id": "69110", "name": "Gandia"}],
+            "trips": [{"id": "4028X18094C1", "line": "C1", "dest": "Gandia", "dates": [day],
+                       "times": [["65000", secs], ["69110", secs + 2700]]}],
+            "platforms": {"65000": {"18094": "4"}}}
+
+
+class FakeBoardStations(FakeStations):
+    def __init__(self, loaded=True):
+        super().__init__({"65000": frozenset({"4028X18094C1"}), "69110": frozenset({"4028X18094C1"})} if loaded else None)
+        self.feed = board_feed()
+
+    def feeds_for(self, stop):
+        return None if self.index is None else ([self.feed] if stop in self.index else [])
+
+    def station(self, stop):
+        return {"id": stop, "name": "València Nord", "nucleos": ["Valencia"]} if self.index and stop in self.index else None
+
+    def names(self):
+        return {}
+
+
+def board_server(trips, positions, loaded=True, tmp_path=None):
+    from anden_api.stats import Tally
+    r = FakeRefresher()
+    tally = Tally()
+    s = make_server("127.0.0.1", 0, follows=None, push=None, clock=lambda: NOW, log=io.StringIO(),
+                    trips=trips, positions=positions, stations=FakeBoardStations(loaded), refresher=r, stats=tally)
+    threading.Thread(target=s.serve_forever, daemon=True).start()
+    return s, r, tally
+
+
+WEB = {"User-Agent": "Mozilla/5.0 (iPhone)", "X-Real-IP": "203.0.113.9"}
+
+
+def test_board_known_stop_200_with_departures():
+    from anden_api.renfe import Sighting, Trip
+    s, _, _ = board_server(FakeLiveFeed({"4028X18094C1": Trip(120, False)}),
+                           FakeLiveFeed({"4028X18094C1": Sighting("65000", "INCOMING_AT", "3", int(NOW - 20))}, ts=NOW - 10))
+    try:
+        st, h, out = get(s, "/board/65000", WEB)
+        assert st == 200 and h["cache-control"] == "no-store"
+        b = json.loads(out)
+        assert b["station"] == {"id": "65000", "name": "València Nord", "nucleos": ["Valencia"]}
+        assert b["rtStale"] is False and "generatedAt" in b
+        [d] = b["departures"]
+        assert (d["tripId"], d["delay"], d["minutes"], d["usualPlatform"], d["livePlatform"]) == \
+            ("4028X18094C1", 120, 12, "4", "3")
+    finally:
+        stop_server(s)
+
+
+def test_board_scheduled_only_when_realtime_not_fresh():
+    s, r, _ = board_server(FakeLiveFeed(None, ts=None), FakeLiveFeed(None, ts=None))
+    try:
+        st, _, out = get(s, "/board/65000", WEB)
+        b = json.loads(out)
+        assert st == 200 and b["rtStale"] is True and b["departures"][0]["live"] is False
+        assert r.touched[-1] == (NOW, True)
+    finally:
+        stop_server(s)
+
+
+def test_board_uses_realtime_100s_old():
+    from anden_api.renfe import Trip
+    s, _, _ = board_server(FakeLiveFeed({"4028X18094C1": Trip(60, False)}, ts=NOW - 100), FakeLiveFeed({}))
+    try:
+        b = json.loads(get(s, "/board/65000", WEB)[2])
+        assert b["rtStale"] is False and b["departures"][0]["delay"] == 60
+    finally:
+        stop_server(s)
+
+
+def test_board_ignores_stale_platform_sighting_in_fresh_feed():
+    from anden_api.renfe import Sighting, Trip
+    s, _, _ = board_server(FakeLiveFeed({"4028X18094C1": Trip(0, False)}),
+                           FakeLiveFeed({"4028X18094C1": Sighting("65000", "STOPPED_AT", "3", int(NOW - 600))}, ts=NOW - 10))
+    try:
+        assert json.loads(get(s, "/board/65000", WEB)[2])["departures"][0]["livePlatform"] is None
+    finally:
+        stop_server(s)
+
+
+def test_board_unknown_stop_404():
+    s, _, _ = board_server(FakeLiveFeed({}), FakeLiveFeed({}))
+    try:
+        assert get(s, "/board/99999", WEB)[0] == 404
+    finally:
+        stop_server(s)
+
+
+def test_board_503_before_timetables_load():
+    s, _, _ = board_server(FakeLiveFeed({}), FakeLiveFeed({}), loaded=False)
+    try:
+        assert get(s, "/board/65000", WEB)[0] == 503
+    finally:
+        stop_server(s)
+
+
+def test_board_bad_path_404():
+    s, _, _ = board_server(FakeLiveFeed({}), FakeLiveFeed({}))
+    try:
+        for p in ("/board/6500", "/board/65000x", "/board/65000/", "/board/abcde"):
+            assert get(s, p, WEB)[0] == 404, p
+    finally:
+        stop_server(s)
+
+
+def test_board_cached_15s_but_every_request_counted():
+    from anden_api.renfe import Trip
+    trips = FakeLiveFeed({"4028X18094C1": Trip(60, False)})
+    s, _, tally = board_server(trips, FakeLiveFeed({}))
+    try:
+        first = json.loads(get(s, "/board/65000", WEB)[2])
+        trips.value = {"4028X18094C1": Trip(600, False)}
+        again = json.loads(get(s, "/board/65000", WEB)[2])
+        assert again == first  # same 15 s window: not computed again
+        [d] = tally.drain(NOW)
+        assert (d.requests, d.visitors, d.versions) == (2, 1, {"web": 2})
+    finally:
+        stop_server(s)
