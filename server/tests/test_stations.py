@@ -123,3 +123,50 @@ def test_names_from_index(tmp_path):
     assert st.names() == {}
     st.refresh()
     assert st.names() == {"S1": ("Atocha", "Madrid"), "S2": ("Sin núcleo", ""), "S3": ("Raro", "")}
+
+
+def write_indexed(root, name, feeds, stops):
+    gen = write_gen(root, name, feeds)
+    idx = json.loads((gen / "index.json").read_text())
+    for n in idx["nucleos"]:
+        n["name"] = {"47": "León", "60": "Bilbao"}.get(n["id"], n["id"])
+    idx["stops"] = stops
+    (gen / "index.json").write_text(json.dumps(idx))
+    return gen
+
+
+def test_feeds_for_a_stop_in_two_nucleos_returns_both(tmp_path):
+    point(tmp_path, write_indexed(tmp_path, "gen.a", {
+        "47": feed("47", {"L1": ["05761", "E"]}), "60": feed("60", {"B1": ["05761", "F"]}),
+        "10": feed("10", {"M1": ["S9"]})},
+        [{"id": "05761", "name": "Cistierna", "nucleos": ["47", "60"]}]))
+    st = StationTrips(tmp_path / "current")
+    st.refresh()
+    assert sorted(f["nucleo"] for f in st.feeds_for("05761")) == ["47", "60"]
+    assert [f["nucleo"] for f in st.feeds_for("S9")] == ["10"]
+
+
+def test_feeds_for_unknown_is_empty_and_none_before_load(tmp_path):
+    st = StationTrips(tmp_path / "current")
+    assert st.feeds_for("S1") is None and st.station("S1") is None
+    point(tmp_path, write_gen(tmp_path, "gen.a", {"10": feed("10", {"T1": ["S1"]})}))
+    st.refresh()
+    assert st.feeds_for("NOPE") == [] and st.station("NOPE") is None
+
+
+def test_station_has_name_and_nucleo_names(tmp_path):
+    point(tmp_path, write_indexed(tmp_path, "gen.a", {
+        "47": feed("47", {"L1": ["05761", "E"]}), "60": feed("60", {"B1": ["05761", "F"]})},
+        [{"id": "05761", "name": "Cistierna", "nucleos": ["47", "60"]}]))
+    st = StationTrips(tmp_path / "current")
+    st.refresh()
+    assert st.station("05761") == {"id": "05761", "name": "Cistierna", "nucleos": ["León", "Bilbao"]}
+
+
+def test_bad_generation_keeps_previous_feeds(tmp_path):
+    point(tmp_path, write_gen(tmp_path, "gen.a", {"10": feed("10", {"T1": ["S1"]})}))
+    st = StationTrips(tmp_path / "current")
+    st.refresh()
+    point(tmp_path, write_gen(tmp_path, "gen.b", {"10": feed("10", {"T7": ["S1"]})}, broken="20"))
+    assert st.refresh() is False
+    assert [t["id"] for t in st.feeds_for("S1")[0]["trips"]] == ["T1"]
