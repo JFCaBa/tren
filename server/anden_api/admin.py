@@ -13,6 +13,7 @@ RANGE_LABELS = (("today", "Hoy"), ("7d", "7 días"), ("30d", "30 días"), ("all"
 DEFAULT_RANGE = "7d"
 DAILY_DAYS = 30
 TOP = 20
+CHANNELS = (("app", "App"), ("web", "Web"))
 
 
 def _back(today: str, n: int) -> str:
@@ -20,7 +21,7 @@ def _back(today: str, n: int) -> str:
 
 
 def summary(db: StatsDB, today: str, rng: str, live_visitors: int, active_follows: int,
-            names: dict[str, tuple[str, str]]) -> dict:
+            names: dict[str, tuple[str, str]], live_channels: dict[str, int] | None = None) -> dict:
     rng = rng if rng in RANGES else DEFAULT_RANGE
     since = None if RANGES[rng] is None else _back(today, RANGES[rng])
     first = _back(today, DAILY_DAYS - 1)
@@ -31,9 +32,15 @@ def summary(db: StatsDB, today: str, rng: str, live_visitors: int, active_follow
     hours = db.hours(since)
     versions = db.versions(since)
     total = sum(versions.values())
+    live_channels = live_channels or {}
+    # Days before today from the store; today from the live sets (the store lags until the next flush).
+    stored = db.channels(since, before=today)
+    by_channel = {ch: stored.get(ch, 0) + live_channels.get(ch, 0) for ch, _ in CHANNELS}
     return {
         "range": rng,
         "visitors_today": live_visitors,
+        "channels_today": {ch: live_channels.get(ch, 0) for ch, _ in CHANNELS},
+        "channels": [{"channel": label, "people": by_channel[ch]} for ch, label in CHANNELS],
         "stations_today": db.stations_count(today),
         "follows_today": by_day.get(today, {}).get("follows", 0),
         "active_follows": active_follows,
@@ -69,6 +76,7 @@ nav a.on { background: var(--brand); border-color: var(--brand); color: var(--bg
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
 .card b { display: block; font-size: 26px; font-variant-numeric: tabular-nums; }
 .card span { color: var(--muted); font-size: 13px; }
+.card small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
 svg { display: block; width: 100%; height: auto; }
 svg rect { fill: var(--bar); }
@@ -113,12 +121,15 @@ def _rows(items: list[tuple[str, str, int]]) -> str:
 def render_page(s: dict) -> str:
     nav = "".join(f'<a href="?range={k}"{" class=on" if k == s["range"] else ""}>{label}</a>'
                   for k, label in RANGE_LABELS)
-    cards = (f'<div class="card"><b>{s["visitors_today"]:,}</b><span>Personas hoy</span></div>'
+    by_channel_today = " · ".join(f"{label} {s['channels_today'][ch]:,}" for ch, label in CHANNELS)
+    cards = (f'<div class="card"><b>{s["visitors_today"]:,}</b><span>Personas hoy</span>'
+             f'<small>{by_channel_today}</small></div>'
              f'<div class="card"><b>{s["stations_today"]:,}</b><span>Estaciones hoy</span></div>'
              f'<div class="card"><b>{s["active_follows"]:,} / {s["follows_today"]:,}</b>'
              f'<span>Trenes seguidos ahora / hoy</span></div>')
     daily = _bars([d["visitors"] for d in s["daily"]], [d["day"][5:] for d in s["daily"]], True)
     empty = '<p class="empty">Aún no hay datos.</p>'
+    channels = _rows([(c["channel"], "", c["people"]) for c in s["channels"]])
     top = _rows([(t["name"], t["nucleo"], t["people"]) for t in s["top"]]) or empty
     hours = _bars(s["hours"], [f"{h:02d}" for h in range(24)], False) if any(s["hours"]) else empty
     versions = _rows([(v["version"], f'{v["pct"]}%', v["requests"]) for v in s["versions"]]) or empty
@@ -131,6 +142,7 @@ def render_page(s: dict) -> str:
 <div class="cards">{cards}</div>
 <h2>Personas al día <small>· últimos 30 días</small></h2><div class="panel">{daily}</div>
 <nav class="range">{nav}</nav>
+<h2>Personas por origen <small>· app y web</small></h2><div class="panel">{channels}</div>
 <h2>Estaciones más vistas <small>· personas</small></h2><div class="panel">{top}</div>
 <h2>Horas punta <small>· consultas</small></h2><div class="panel">{hours}</div>
 <h2>Versiones de la app <small>· consultas</small></h2><div class="panel">{versions}</div>

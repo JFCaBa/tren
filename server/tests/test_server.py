@@ -350,6 +350,7 @@ def test_admin_shows_live_people_and_names(tmp_path):
         db.apply(tally.drain(NOW))
         page = get(s, "/admin?range=today", {"X-Admin-Key": "s3cret"})[2].decode()
         assert "Madrid-Puerta de Atocha" in page and "<b>1</b><span>Personas hoy" in page
+        assert "<small>App 1 · Web 0</small>" in page
     finally:
         stop_server(s), db.close()
 

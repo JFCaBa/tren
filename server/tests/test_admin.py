@@ -9,8 +9,8 @@ NAMES = {"18000": ("Madrid-Puerta de Atocha", "Madrid"), "65000": ("València No
          "BAD": ("<script>alert(1)</script>", "x")}
 
 
-def delta(day, visitors=0, requests=0, stations=None, versions=None, follows=0, hours=None):
-    return Delta(day, visitors, False, requests, follows, hours or {}, stations or {}, versions or {})
+def delta(day, visitors=0, requests=0, stations=None, versions=None, follows=0, hours=None, channels=None):
+    return Delta(day, visitors, False, requests, follows, hours or {}, stations or {}, versions or {}, channels or {})
 
 
 @pytest.fixture
@@ -19,14 +19,16 @@ def db(tmp_path):
     d.apply([
         delta(TODAY, visitors=5, requests=40, stations={"18000": (4, 40)}, versions={"1.5": 30, "otro": 10},
               follows=2, hours={8: 40}),
-        delta("2026-11-13", visitors=9, requests=70, stations={"65000": (9, 70)}, versions={"1.4": 70}),
+        delta("2026-11-13", visitors=9, requests=70, stations={"65000": (9, 70)}, versions={"1.4": 70},
+              channels={"app": 9}),
+        delta("2026-11-20", visitors=3, channels={"app": 1, "web": 2}),
     ])
     yield d
     d.close()
 
 
-def s(db, rng="7d", live=6, active=1):
-    return summary(db, TODAY, rng, live, active, NAMES)
+def s(db, rng="7d", live=6, active=1, channels=None):
+    return summary(db, TODAY, rng, live, active, NAMES, {"app": 4, "web": 2} if channels is None else channels)
 
 
 def test_summary_ranges(db):
@@ -89,3 +91,27 @@ def test_render_sections(db):
 
 def test_links_back_to_what_platform_admin(db):
     assert '<a href="/admin">' in render_page(s(db))
+
+
+def test_channels_today_live_and_range(db):
+    db.apply([delta(TODAY, channels={"app": 1, "web": 1})])  # stored today: replaced by the live counts
+    x = s(db)
+    assert x["channels_today"] == {"app": 4, "web": 2}
+    assert x["channels"] == [{"channel": "App", "people": 5}, {"channel": "Web", "people": 4}]
+    assert s(db, "today")["channels"] == [{"channel": "App", "people": 4}, {"channel": "Web", "people": 2}]
+    assert s(db, "all")["channels"][0] == {"channel": "App", "people": 14}
+
+
+def test_render_channels(db):
+    page = render_page(s(db))
+    assert "<small>App 4 · Web 2</small>" in page
+    nav = page.index('href="?range=today"')
+    assert nav < page.index("Personas por origen") < page.index("Estaciones más vistas")
+
+
+def test_channels_empty(tmp_path):
+    d = StatsDB(tmp_path / "e.db")
+    x = summary(d, TODAY, "7d", 0, 0, NAMES, {})
+    assert x["channels"] == [{"channel": "App", "people": 0}, {"channel": "Web", "people": 0}]
+    assert "<small>App 0 · Web 0</small>" in render_page(x)
+    d.close()

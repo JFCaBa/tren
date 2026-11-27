@@ -6,8 +6,9 @@ from anden_api.stats import Delta
 from anden_api.stats_db import StatsDB
 
 
-def delta(day="2026-11-23", visitors=0, closed=False, requests=0, follows=0, hours=None, stations=None, versions=None):
-    return Delta(day, visitors, closed, requests, follows, hours or {}, stations or {}, versions or {})
+def delta(day="2026-11-23", visitors=0, closed=False, requests=0, follows=0, hours=None, stations=None, versions=None,
+          channels=None):
+    return Delta(day, visitors, closed, requests, follows, hours or {}, stations or {}, versions or {}, channels or {})
 
 
 @pytest.fixture
@@ -92,7 +93,7 @@ def test_backup_keeps_7(db, tmp_path):
 
 def test_no_sensitive_columns(tmp_path):
     StatsDB(tmp_path / "x.db").close()
-    allowed = {"day", "visitors", "people", "requests", "follows", "hour", "stop", "version"}
+    allowed = {"day", "visitors", "people", "requests", "follows", "hour", "stop", "version", "channel"}
     with sqlite3.connect(tmp_path / "x.db") as c:
         for (t,) in c.execute("SELECT name FROM sqlite_master WHERE type='table'"):
             cols = {r[1] for r in c.execute(f"PRAGMA table_info({t})")}
@@ -105,3 +106,39 @@ def test_bases_of_closed_days_dropped(db):
               delta(visitors=1, stations={"18000": (1, 1)})])
     assert all(k[0] != "2026-11-22" for k in db._station_base) and "2026-11-22" not in db._base
     assert db.days("2026-11-22")[0]["visitors"] == 3
+
+
+def test_channels_absolute_per_day_summed_across_days(db):
+    db.apply([delta(day="2026-11-22", channels={"app": 3, "web": 1})])
+    db.apply([delta(channels={"app": 1}), delta(channels={"app": 2, "web": 5})])
+    assert db.channels(None) == {"app": 5, "web": 6}
+    assert db.channels("2026-11-23") == {"app": 2, "web": 5}
+
+
+def test_channels_restart_base(tmp_path):
+    db = StatsDB(tmp_path / "s.db")
+    db.apply([delta(channels={"app": 4, "web": 2})])
+    db.close()
+    db = StatsDB(tmp_path / "s.db")
+    assert db.channels_base("2026-11-23") == {"app": 4, "web": 2}
+    db.apply([delta(channels={"app": 1})])
+    assert db.channels(None) == {"app": 5, "web": 2}
+    db.close()
+
+
+def test_older_db_without_channels_table_opens(tmp_path):
+    p = tmp_path / "old.db"
+    c = sqlite3.connect(p)
+    c.execute("CREATE TABLE days (day TEXT PRIMARY KEY, visitors INTEGER NOT NULL DEFAULT 0, "
+              "requests INTEGER NOT NULL DEFAULT 0, follows INTEGER NOT NULL DEFAULT 0)")
+    c.commit(), c.close()
+    db = StatsDB(p)
+    assert db.channels(None) == {}
+    db.close()
+
+
+def test_channels_before_a_day(db):
+    db.apply([delta(day="2026-11-21", channels={"app": 2}), delta(day="2026-11-22", channels={"web": 1}),
+              delta(channels={"app": 7})])
+    assert db.channels("2026-11-22", before="2026-11-23") == {"web": 1}
+    assert db.channels(None, before="2026-11-23") == {"app": 2, "web": 1}

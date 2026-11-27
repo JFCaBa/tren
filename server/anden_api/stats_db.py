@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS stations (day TEXT NOT NULL, stop TEXT NOT NULL,
     people INTEGER NOT NULL DEFAULT 0, requests INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, stop));
 CREATE TABLE IF NOT EXISTS versions (day TEXT NOT NULL, version TEXT NOT NULL,
     requests INTEGER NOT NULL, PRIMARY KEY (day, version));
+CREATE TABLE IF NOT EXISTS channels (day TEXT NOT NULL, channel TEXT NOT NULL,
+    people INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, channel));
 """
 
 
@@ -29,6 +31,7 @@ class StatsDB:
         self._conn.executescript(SCHEMA)
         self._base: dict[str, int] = {}  # day → visitors stored before this process saw it
         self._station_base: dict[tuple[str, str], int] = {}  # (day, stop) → people, likewise
+        self._channel_base: dict[str, dict[str, int]] = {}  # day → {«app»/«web»: people}, likewise
 
     def close(self) -> None:
         with self._lock:
@@ -49,6 +52,16 @@ class StatsDB:
             self._station_base[key] = row[0] if row else 0
         return self._station_base[key]
 
+    def _channel_base_for(self, day: str) -> dict[str, int]:
+        if day not in self._channel_base:
+            self._channel_base[day] = dict(self._conn.execute(
+                "SELECT channel, people FROM channels WHERE day = ?", (day,)))
+        return self._channel_base[day]
+
+    def channels_base(self, day: str) -> dict[str, int]:
+        with self._lock:
+            return dict(self._channel_base_for(day))
+
     def visitors_base(self, day: str) -> int:
         with self._lock:
             return self._base_for(day)
@@ -56,7 +69,7 @@ class StatsDB:
     def apply(self, deltas: list[Delta]) -> None:
         """One transaction: a failure leaves nothing of the batch, so it can be retried as a whole."""
         with self._lock:
-            base, station_base = dict(self._base), dict(self._station_base)
+            base, station_base, channel_base = dict(self._base), dict(self._station_base), dict(self._channel_base)
             try:
                 with self._conn:
                     c = self._conn
@@ -70,16 +83,21 @@ class StatsDB:
                                       "requests = requests + excluded.requests",
                                       [(d.day, s, self._station_base_for(d.day, s) + p, n)
                                        for s, (p, n) in d.stations.items()])
+                        cb = self._channel_base_for(d.day)
+                        c.executemany("INSERT INTO channels (day, channel, people) VALUES (?, ?, ?) "
+                                      "ON CONFLICT(day, channel) DO UPDATE SET people = excluded.people",
+                                      [(d.day, ch, cb.get(ch, 0) + p) for ch, p in d.channels.items()])
                         for table, col, counts in (("hours", "hour", d.hours), ("versions", "version", d.versions)):
                             c.executemany(f"INSERT INTO {table} (day, {col}, requests) VALUES (?, ?, ?) "
                                           f"ON CONFLICT(day, {col}) DO UPDATE SET requests = requests + excluded.requests",
                                           [(d.day, k, n) for k, n in counts.items()])
             except Exception:
-                self._base, self._station_base = base, station_base  # bases read inside the rolled-back batch
+                self._base, self._station_base, self._channel_base = base, station_base, channel_base  # bases read inside the rolled-back batch
                 raise
             for d in deltas:  # a closed day gets no more writes: its bases are no longer needed
                 if d.closed:
                     self._base.pop(d.day, None)
+                    self._channel_base.pop(d.day, None)
                     for k in [k for k in self._station_base if k[0] == d.day]:
                         del self._station_base[k]
 
@@ -114,6 +132,16 @@ class StatsDB:
         where, args = self._since(since)
         with self._lock:
             return dict(self._conn.execute(f"SELECT version, SUM(requests) FROM versions {where} GROUP BY version",
+                                           args))
+
+    def channels(self, since: str | None, before: str | None = None) -> dict[str, int]:
+        """People by channel («app»/«web»), each day's distinct people added up over the days
+        from `since` and, with `before`, only the days before it."""
+        where, args = self._since(since)
+        if before:
+            where, args = (f"{where} AND day < ?" if where else "WHERE day < ?"), args + (before,)
+        with self._lock:
+            return dict(self._conn.execute(f"SELECT channel, SUM(people) FROM channels {where} GROUP BY channel",
                                            args))
 
     def stations_count(self, day: str) -> int:

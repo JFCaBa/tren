@@ -185,3 +185,31 @@ def test_bot_browser_ua_is_otro():
         t.add_live(utc(*D, 10), "18000", "203.0.113.9", ua)
     [d] = t.drain(utc(*D, 10))
     assert (d.visitors, d.versions) == (0, {"otro": 3})
+
+
+WEB_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)"
+
+
+def test_people_by_channel_app_and_web():
+    t = Tally()
+    ts = utc(*D, 10)
+    t.add_live(ts, "18000", "1.2.3.4", UA)
+    t.add_live(ts, "18000", "1.2.3.4", UA)
+    t.add_live(ts, "18000", "5.6.7.8", "Anden/1.4")
+    t.add_live(ts, "18000", "9.9.9.9", WEB_UA)
+    t.add_live(ts, "18000", "8.8.8.8", "curl/8")  # otro: neither
+    assert t.channels_today(ts) == {"app": 2, "web": 1}
+    [d] = t.drain(ts + 1)
+    assert d.channels == {"app": 2, "web": 1}
+    t.add_live(ts + 2, "18000", "7.7.7.7", WEB_UA)
+    [d] = t.drain(ts + 3)
+    assert d.channels == {"app": 2, "web": 2}  # people so far today, like visitors
+
+
+def test_channels_kept_for_closed_day_and_reset():
+    t = Tally()
+    t.add_live(utc(*D, 22), "18000", "1.2.3.4", UA)
+    t.add_live(utc(*D, 23, 1), "18000", "9.9.9.9", WEB_UA)  # new Madrid day
+    a, b = t.drain(utc(*D, 23, 2))
+    assert (a.closed, a.channels, b.channels) == (True, {"app": 1}, {"web": 1})
+    assert t.channels_today(utc(*D1, 23, 30)) == {}  # a later day with no traffic yet

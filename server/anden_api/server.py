@@ -237,8 +237,10 @@ def make_server(host: str, port: int, *, follows: FollowStore | None, push, cloc
             now = clock()
             today = madrid_day(now)
             names = stations.names() if stations is not None else {}
+            base, live = stats_db.channels_base(today), stats.channels_today(now)
+            channels = {ch: base.get(ch, 0) + live.get(ch, 0) for ch in set(base) | set(live)}
             page = render_page(summary(stats_db, today, rng, stats_db.visitors_base(today) + stats.visitors_today(now),
-                                       len(follows) if follows is not None else 0, names)).encode()
+                                       len(follows) if follows is not None else 0, names, channels)).encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(page)))
